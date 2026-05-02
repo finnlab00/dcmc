@@ -8,42 +8,41 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Bersihkan sisa-sisa sesi lama saat halaman dimuat
+  // Pastikan sesi bersih saat kembali ke halaman login
   useEffect(() => {
     sessionStorage.clear();
   }, []);
 
   const handleLogin = (e) => {
-    e.preventDefault(); // Mencegah reload halaman saat submit form
+    e.preventDefault();
     setIsLoading(true);
 
-    // KODE AKSES: Sesuaikan dengan keinginan Anda
+    // Kode akses yang Anda gunakan
     const SECRET_CODE = "DCMC2026";
 
     if (inputCode === SECRET_CODE) {
-      // Simpan status akses ke sessionStorage
       sessionStorage.setItem("access_granted", "true");
       
-      // Berikan sedikit jeda untuk memastikan storage tersimpan sebelum pindah halaman
+      // Jeda singkat untuk memastikan storage tersimpan sebelum pindah halaman
       setTimeout(() => {
         router.push("/preorder");
       }, 500);
     } else {
-      alert("Kode Akses Salah! Silakan hubungi Admin.");
+      alert("Kode Akses Salah!");
       setIsLoading(false);
     }
   };
 
   return (
-    <div style={styles.container}>
+    <main style={styles.main}>
       <div style={styles.card}>
         <h1 style={styles.title}>DCMC Logistics</h1>
-        <p style={styles.subtitle}>Masukkan Kode Akses untuk Melanjutkan</p>
+        <p style={styles.description}>Portal Pre-Order Anggota</p>
         
         <form onSubmit={handleLogin} style={styles.form}>
           <input
             type="password"
-            placeholder="Kode Akses"
+            placeholder="Masukkan Kode Akses"
             value={inputCode}
             onChange={(e) => setInputCode(e.target.value)}
             style={styles.input}
@@ -52,76 +51,64 @@ export default function LoginPage() {
           <button 
             type="submit" 
             disabled={isLoading}
-            style={{
-              ...styles.button,
-              backgroundColor: isLoading ? "#ccc" : "#0070f3"
-            }}
+            style={styles.button}
           >
-            {isLoading ? "Memverifikasi..." : "Masuk Sekarang"}
+            {isLoading ? "Memverifikasi..." : "Login"}
           </button>
         </form>
-        
-        <p style={styles.footer}>&copy; 2026 DCMC System</p>
       </div>
-    </div>
+    </main>
   );
 }
 
-// Styling sederhana agar tampilan rapi di HP & Laptop
+// Gaya minimalis yang biasanya cocok dengan tampilan awal Next.js
 const styles = {
-  container: {
+  main: {
     display: "flex",
-    height: "100vh",
+    flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f0f2f5",
-    fontFamily: "sans-serif",
-    padding: "20px"
+    minHeight: "100vh",
+    backgroundColor: "#ffffff",
+    padding: "1rem",
   },
   card: {
-    backgroundColor: "#fff",
-    padding: "40px",
-    borderRadius: "12px",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
     width: "100%",
     maxWidth: "400px",
-    textAlign: "center"
+    padding: "2rem",
+    textAlign: "center",
   },
   title: {
-    margin: "0 0 10px 0",
-    color: "#333",
-    fontSize: "24px"
+    fontSize: "2rem",
+    fontWeight: "bold",
+    marginBottom: "0.5rem",
   },
-  subtitle: {
+  description: {
     color: "#666",
-    marginBottom: "30px",
-    fontSize: "14px"
+    marginBottom: "2rem",
   },
   form: {
     display: "flex",
     flexDirection: "column",
-    gap: "15px"
+    gap: "1rem",
   },
   input: {
-    padding: "12px",
-    borderRadius: "6px",
-    border: "1px solid #ddd",
-    fontSize: "16px",
-    outline: "none"
+    width: "100%",
+    padding: "0.75rem",
+    borderRadius: "8px",
+    border: "1px solid #ccc",
+    fontSize: "1rem",
+    boxSizing: "border-box",
   },
   button: {
-    padding: "12px",
-    borderRadius: "6px",
+    width: "100%",
+    padding: "0.75rem",
+    borderRadius: "8px",
     border: "none",
+    backgroundColor: "#000",
     color: "#fff",
-    fontSize: "16px",
-    fontWeight: "bold",
+    fontSize: "1rem",
+    fontWeight: "600",
     cursor: "pointer",
-    transition: "0.3s"
   },
-  footer: {
-    marginTop: "30px",
-    fontSize: "12px",
-    color: "#999"
-  }
 };
