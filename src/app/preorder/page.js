@@ -83,26 +83,26 @@ export default function PreOrderPage() {
     }
   };
 
-  // --- CHECKOUT LOGIC (MERGED ITEMS) ---
+  // --- CHECKOUT LOGIC (DENGAN DETAIL JUMLAH) ---
   const handleCheckout = async () => {
     if (!namaPemesan) return alert("Wajib isi NAMA PEMESAN!");
     if (keranjang.length === 0) return alert("Keranjang Kosong!");
     setLoading(true);
 
     try {
-      // Menggabungkan item keranjang menjadi satu string: "ITEM A x1, ITEM B x2"
       const stringBarang = keranjang
         .map(item => `${item.namaBarang.toUpperCase()} x${item.jumlah}`)
         .join(", ");
 
       const totalHarga = keranjang.reduce((sum, item) => sum + item.subtotal, 0);
+      const totalItemCount = keranjang.reduce((sum, item) => sum + parseInt(item.jumlah), 0);
 
       const dataBaru = {
         tanggal: new Date().toISOString().split('T')[0],
         pemesan: namaPemesan.toUpperCase(),
         namaVendor: keranjang[0].namaVendor,
         namaBarang: stringBarang,
-        jumlah: keranjang.length,
+        jumlah: totalItemCount, // Mengirim total seluruh kuantitas ke DB
         totalHarga: totalHarga.toString(),
         statusBayar: "Belum",
         statusAmbil: "Belum",
@@ -116,7 +116,7 @@ export default function PreOrderPage() {
       });
 
       if (res.ok) {
-        alert("Checkout Berhasil! Pesanan Digabungkan.");
+        alert("Checkout Berhasil!");
         setKeranjang([]);
         setNamaPemesan("");
         refreshData();
@@ -135,10 +135,11 @@ export default function PreOrderPage() {
     orderList.forEach(order => {
       if (order.statusAmbil !== "Diambil") {
         if (!ringkasan[order.namaVendor]) ringkasan[order.namaVendor] = {};
-        // Memecah kembali string barang untuk rekap procurement
         const items = order.namaBarang.split(", ");
         items.forEach(i => {
-          const [name, qty] = i.split(" x");
+          const parts = i.split(" x");
+          const name = parts[0];
+          const qty = parts[1] || 0;
           if (!ringkasan[order.namaVendor][name]) ringkasan[order.namaVendor][name] = 0;
           ringkasan[order.namaVendor][name] += parseInt(qty);
         });
@@ -199,7 +200,7 @@ export default function PreOrderPage() {
             <div className="max-h-60 overflow-y-auto space-y-3 mb-6 pr-1">
               {keranjang.map((item) => (
                 <div key={item.idTemp} className="bg-slate-900 p-3 rounded border border-slate-700 flex justify-between items-center text-[10px]">
-                  <div><p className="font-black uppercase italic">{item.namaBarang} x{item.jumlah}</p></div>
+                  <div><p className="font-black uppercase italic">{item.namaBarang} <span className="text-red-500 font-black">x{item.jumlah}</span></p></div>
                   <button onClick={() => setKeranjang(keranjang.filter(i => i.idTemp !== item.idTemp))} className="text-red-500 font-black hover:text-white">REMOVE</button>
                 </div>
               ))}
@@ -217,7 +218,7 @@ export default function PreOrderPage() {
             <table className="w-full text-left uppercase text-[9px] tracking-tighter">
               <thead>
                 <tr className="bg-slate-900 text-slate-500 border-b border-slate-700 font-bold">
-                  <th className="p-4">Info Pesanan</th>
+                  <th className="p-4">Info Pesanan (Item & Qty)</th>
                   <th className="p-4 text-center">Status Bayar</th>
                   <th className="p-4 text-center">Status Ambil</th>
                   <th className="p-4 text-right">Progress</th>
@@ -228,13 +229,14 @@ export default function PreOrderPage() {
                   <tr key={order.id || i} className="hover:bg-slate-700/20 transition-colors">
                     <td className="p-4">
                       <p className="text-slate-500 mb-1">{order.tanggal} | {order.pemesan}</p>
-                      {/* Memecah string gabungan untuk ditampilkan berbaris di tabel */}
                       <div className="space-y-0.5">
                         {order.namaBarang.split(", ").map((itemStr, idx) => {
-                          const [name, qty] = itemStr.split(" x");
+                          const parts = itemStr.split(" x");
+                          const name = parts[0];
+                          const qty = parts[1] || "0";
                           return (
                             <p key={idx} className="font-black text-white italic">
-                              {name} <span className="text-red-500">x{qty}</span>
+                              {name} <span className="text-red-500 font-black text-[10px]">x{qty}</span>
                             </p>
                           );
                         })}
@@ -242,19 +244,19 @@ export default function PreOrderPage() {
                     </td>
                     <td className="p-4 text-center">
                       <button disabled={!isAdmin} onClick={() => updateStatus(order.id, "statusBayar", order.statusBayar)}
-                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusBayar === 'Lunas' ? 'bg-green-500 text-black' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30'}`}>
+                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusBayar === 'Lunas' ? 'bg-green-500 text-black border-green-400' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30'} ${isAdmin ? 'cursor-pointer hover:scale-105' : ''}`}>
                         {(order.statusBayar || 'Belum').toUpperCase()}
                       </button>
                     </td>
                     <td className="p-4 text-center">
                       <button disabled={!isAdmin} onClick={() => updateStatus(order.id, "statusAmbil", order.statusAmbil)}
-                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusAmbil === 'Diambil' ? 'bg-green-500 text-black' : 'bg-slate-700 text-slate-400 border-slate-600'}`}>
+                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusAmbil === 'Diambil' ? 'bg-green-500 text-black border-green-400' : 'bg-slate-700 text-slate-400 border-slate-600'} ${isAdmin ? 'cursor-pointer hover:scale-105' : ''}`}>
                         {(order.statusAmbil || 'Belum').toUpperCase()}
                       </button>
                     </td>
                     <td className="p-4 text-right">
                       <button disabled={!isAdmin} onClick={() => updateStatus(order.id, "statusPesanan", order.statusPesanan)}
-                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusPesanan === 'Ready' ? 'bg-green-900 text-green-300' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>
+                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusPesanan === 'Ready' ? 'bg-green-900 text-green-300 border-green-700' : 'bg-slate-900 text-slate-500 border-slate-800'} ${isAdmin ? 'cursor-pointer hover:scale-105' : ''}`}>
                         {(order.statusPesanan || 'Proses').toUpperCase()}
                       </button>
                     </td>
@@ -271,7 +273,7 @@ export default function PreOrderPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[10px]">
             {Object.keys(dataRingkasan).map((vendorName) => (
               <div key={vendorName} className="bg-slate-800 p-4 rounded-lg border border-slate-700 border-t-4 border-t-red-600 shadow-xl">
-                <h3 className="text-red-500 font-black mb-3 uppercase italic">{vendorName}</h3>
+                <h3 className="text-red-500 font-black mb-3 uppercase italic tracking-widest">{vendorName}</h3>
                 <ul className="space-y-2">
                   {Object.keys(dataRingkasan[vendorName]).map((itemName) => (
                     <li key={itemName} className="flex justify-between border-b border-slate-700/50 pb-1 text-slate-400 uppercase">
