@@ -83,7 +83,7 @@ export default function PreOrderPage() {
     }
   };
 
-  // --- CHECKOUT LOGIC (DENGAN DETAIL JUMLAH) ---
+  // --- CHECKOUT LOGIC ---
   const handleCheckout = async () => {
     if (!namaPemesan) return alert("Wajib isi NAMA PEMESAN!");
     if (keranjang.length === 0) return alert("Keranjang Kosong!");
@@ -102,8 +102,8 @@ export default function PreOrderPage() {
         pemesan: namaPemesan.toUpperCase(),
         namaVendor: keranjang[0].namaVendor,
         namaBarang: stringBarang,
-        jumlah: totalItemCount, // Mengirim total seluruh kuantitas ke DB
-        totalHarga: totalHarga.toString(),
+        jumlah: totalItemCount,
+        totalHarga: totalHarga, // Disimpan sebagai angka/string harga
         statusBayar: "Belum",
         statusAmbil: "Belum",
         statusPesanan: "Proses"
@@ -179,18 +179,18 @@ export default function PreOrderPage() {
                 setJumlah("");
               }
             }} className="space-y-4">
-              <input type="text" required placeholder="NAMA PEMESAN" className="w-full p-3 rounded bg-slate-900 border border-slate-700 uppercase outline-none focus:border-red-600" value={namaPemesan} onChange={(e) => setNamaPemesan(e.target.value)} />
-              <select required className="w-full p-3 rounded bg-slate-900 border border-slate-700" onChange={(e) => setSelectedVendor(e.target.value)}>
+              <input type="text" required placeholder="NAMA PEMESAN" className="w-full p-3 rounded bg-slate-900 border border-slate-700 uppercase outline-none focus:border-red-600 text-white" value={namaPemesan} onChange={(e) => setNamaPemesan(e.target.value)} />
+              <select required className="w-full p-3 rounded bg-slate-900 border border-slate-700 text-white" onChange={(e) => setSelectedVendor(e.target.value)}>
                 <option value="">-- PILIH VENDOR --</option>
                 {daftarVendorUnik.map((v, i) => <option key={i} value={v}>{v.toUpperCase()}</option>)}
               </select>
-              <select required value={selectedBarang ? selectedBarang.namaBarang : ""} disabled={!selectedVendor} className="w-full p-3 rounded bg-slate-900 border border-slate-700" 
+              <select required value={selectedBarang ? selectedBarang.namaBarang : ""} disabled={!selectedVendor} className="w-full p-3 rounded bg-slate-900 border border-slate-700 text-white" 
                 onChange={(e) => setSelectedBarang(barangTersedia.find(b => b.namaBarang === e.target.value))}>
                 <option value="">-- PILIH BARANG --</option>
                 {barangTersedia.map((b, i) => <option key={i} value={b.namaBarang}>{b.namaBarang.toUpperCase()} - ${b.hargaBarang}</option>)}
               </select>
-              <input type="number" required placeholder="Quantity" value={jumlah} className="w-full p-3 rounded bg-slate-900 border border-slate-700" onChange={(e) => setJumlah(e.target.value)} />
-              <button type="submit" className="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded font-black uppercase text-[10px] tracking-widest">Add to Cart</button>
+              <input type="number" required placeholder="Quantity" value={jumlah} className="w-full p-3 rounded bg-slate-900 border border-slate-700 text-white" onChange={(e) => setJumlah(e.target.value)} />
+              <button type="submit" className="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded font-black uppercase text-[10px] tracking-widest transition-all">Add to Cart</button>
             </form>
           </div>
 
@@ -218,7 +218,8 @@ export default function PreOrderPage() {
             <table className="w-full text-left uppercase text-[9px] tracking-tighter">
               <thead>
                 <tr className="bg-slate-900 text-slate-500 border-b border-slate-700 font-bold">
-                  <th className="p-4">Info Pesanan (Item & Qty)</th>
+                  <th className="p-4 w-1/3">Info Pesanan (Item & Qty)</th>
+                  <th className="p-4 text-center">Total Tagihan</th>
                   <th className="p-4 text-center">Status Bayar</th>
                   <th className="p-4 text-center">Status Ambil</th>
                   <th className="p-4 text-right">Progress</th>
@@ -243,20 +244,25 @@ export default function PreOrderPage() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
+                      <span className="text-white font-black text-[11px] bg-slate-900 px-3 py-1 rounded border border-slate-700">
+                        ${order.totalHarga}
+                      </span>
+                    </td>
+                    <td className="p-4 text-center">
                       <button disabled={!isAdmin} onClick={() => updateStatus(order.id, "statusBayar", order.statusBayar)}
-                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusBayar === 'Lunas' ? 'bg-green-500 text-black border-green-400' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30'} ${isAdmin ? 'cursor-pointer hover:scale-105' : ''}`}>
+                        className={`px-2 py-1 rounded-[3px] font-black border transition-all ${order.statusBayar === 'Lunas' ? 'bg-green-500 text-black border-green-400' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30'} ${isAdmin ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'}`}>
                         {(order.statusBayar || 'Belum').toUpperCase()}
                       </button>
                     </td>
                     <td className="p-4 text-center">
                       <button disabled={!isAdmin} onClick={() => updateStatus(order.id, "statusAmbil", order.statusAmbil)}
-                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusAmbil === 'Diambil' ? 'bg-green-500 text-black border-green-400' : 'bg-slate-700 text-slate-400 border-slate-600'} ${isAdmin ? 'cursor-pointer hover:scale-105' : ''}`}>
+                        className={`px-2 py-1 rounded-[3px] font-black border transition-all ${order.statusAmbil === 'Diambil' ? 'bg-green-500 text-black border-green-400' : 'bg-slate-700 text-slate-400 border-slate-600'} ${isAdmin ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'}`}>
                         {(order.statusAmbil || 'Belum').toUpperCase()}
                       </button>
                     </td>
                     <td className="p-4 text-right">
                       <button disabled={!isAdmin} onClick={() => updateStatus(order.id, "statusPesanan", order.statusPesanan)}
-                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusPesanan === 'Ready' ? 'bg-green-900 text-green-300 border-green-700' : 'bg-slate-900 text-slate-500 border-slate-800'} ${isAdmin ? 'cursor-pointer hover:scale-105' : ''}`}>
+                        className={`px-2 py-1 rounded-[3px] font-black border transition-all ${order.statusPesanan === 'Ready' ? 'bg-green-900 text-green-300 border-green-700' : 'bg-slate-900 text-slate-500 border-slate-800'} ${isAdmin ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'}`}>
                         {(order.statusPesanan || 'Proses').toUpperCase()}
                       </button>
                     </td>
