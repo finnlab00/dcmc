@@ -24,10 +24,9 @@ export default function PreOrderPage() {
   const [isChecking, setIsChecking] = useState(true);
   const router = useRouter();
 
-  // --- SISTEM PROTEKSI & FETCH DATA ---
+  // --- PROTEKSI & FETCH DATA ---
   useEffect(() => {
     const access = sessionStorage.getItem("access_granted");
-    
     if (access === "true") {
       setIsAuthorized(true);
       setIsChecking(false);
@@ -60,7 +59,7 @@ export default function PreOrderPage() {
     }
   }, [selectedVendor, vendorData]);
 
-  // --- LOGIKA ADMIN ---
+  // --- UPDATE STATUS ADMIN ---
   const updateStatus = async (id, field, currentVal) => {
     if (!isAdmin) return;
     let nextVal = "";
@@ -69,10 +68,7 @@ export default function PreOrderPage() {
     if (field === "statusPesanan") nextVal = currentVal === "Ready" ? "Proses" : "Ready";
 
     const payload = { preorder: { [field]: nextVal } };
-    
-    const updatedList = orderList.map(order => 
-      order.id === id ? { ...order, [field]: nextVal } : order
-    );
+    const updatedList = orderList.map(order => order.id === id ? { ...order, [field]: nextVal } : order);
     setOrderList(updatedList);
 
     try {
@@ -82,52 +78,51 @@ export default function PreOrderPage() {
         body: JSON.stringify(payload)
       });
     } catch (err) { 
-      alert("Gagal sinkron ke database.");
+      alert("Gagal update database.");
       refreshData(); 
     }
   };
 
-  // --- LOGIKA CHECKOUT ---
+  // --- CHECKOUT LOGIC (MERGED ITEMS) ---
   const handleCheckout = async () => {
     if (!namaPemesan) return alert("Wajib isi NAMA PEMESAN!");
     if (keranjang.length === 0) return alert("Keranjang Kosong!");
     setLoading(true);
-    
-    const newItemsForHistory = [];
 
     try {
-      for (const item of keranjang) {
-        const dataBaru = {
-          tanggal: new Date().toISOString().split('T')[0],
-          pemesan: item.namaPemesan, 
-          namaVendor: item.namaVendor,
-          namaBarang: item.namaBarang,
-          jumlah: parseInt(item.jumlah),
-          totalHarga: item.subtotal.toString(),
-          statusBayar: "Belum", 
-          statusAmbil: "Belum", 
-          statusPesanan: "Proses"
-        };
+      // Menggabungkan item keranjang menjadi satu string: "ITEM A x1, ITEM B x2"
+      const stringBarang = keranjang
+        .map(item => `${item.namaBarang.toUpperCase()} x${item.jumlah}`)
+        .join(", ");
 
-        const res = await fetch("https://api.sheety.co/07ee5f85b2f38ab43582ae89f9342535/gudangDcmc/preOrder", {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ preorder: dataBaru })
-        });
+      const totalHarga = keranjang.reduce((sum, item) => sum + item.subtotal, 0);
 
-        if (res.ok) {
-          const result = await res.json();
-          newItemsForHistory.push(result.preorder);
-        }
+      const dataBaru = {
+        tanggal: new Date().toISOString().split('T')[0],
+        pemesan: namaPemesan.toUpperCase(),
+        namaVendor: keranjang[0].namaVendor,
+        namaBarang: stringBarang,
+        jumlah: keranjang.length,
+        totalHarga: totalHarga.toString(),
+        statusBayar: "Belum",
+        statusAmbil: "Belum",
+        statusPesanan: "Proses"
+      };
+
+      const res = await fetch("https://api.sheety.co/07ee5f85b2f38ab43582ae89f9342535/gudangDcmc/preOrder", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preorder: dataBaru })
+      });
+
+      if (res.ok) {
+        alert("Checkout Berhasil! Pesanan Digabungkan.");
+        setKeranjang([]);
+        setNamaPemesan("");
+        refreshData();
       }
-
-      setOrderList(prev => [...newItemsForHistory.reverse(), ...prev]);
-      alert("Checkout Berhasil!");
-      setKeranjang([]);
-      setNamaPemesan("");
-    } catch (err) { 
-      alert("Checkout Gagal."); 
-      refreshData();
+    } catch (err) {
+      alert("Checkout Gagal.");
     }
     setLoading(false);
   };
@@ -140,8 +135,13 @@ export default function PreOrderPage() {
     orderList.forEach(order => {
       if (order.statusAmbil !== "Diambil") {
         if (!ringkasan[order.namaVendor]) ringkasan[order.namaVendor] = {};
-        if (!ringkasan[order.namaVendor][order.namaBarang]) ringkasan[order.namaVendor][order.namaBarang] = 0;
-        ringkasan[order.namaVendor][order.namaBarang] += parseInt(order.jumlah);
+        // Memecah kembali string barang untuk rekap procurement
+        const items = order.namaBarang.split(", ");
+        items.forEach(i => {
+          const [name, qty] = i.split(" x");
+          if (!ringkasan[order.namaVendor][name]) ringkasan[order.namaVendor][name] = 0;
+          ringkasan[order.namaVendor][name] += parseInt(qty);
+        });
       }
     });
     return ringkasan;
@@ -149,7 +149,6 @@ export default function PreOrderPage() {
 
   const dataRingkasan = buatRingkasan();
 
-  // Cegah render jika belum terverifikasi
   if (isChecking || !isAuthorized) return null;
 
   return (
@@ -179,18 +178,18 @@ export default function PreOrderPage() {
                 setJumlah("");
               }
             }} className="space-y-4">
-              <input type="text" required placeholder="NAMA PEMESAN" className="w-full p-3 rounded bg-slate-900 border border-slate-700 uppercase outline-none focus:border-red-600 text-white" value={namaPemesan} onChange={(e) => setNamaPemesan(e.target.value)} />
-              <select required className="w-full p-3 rounded bg-slate-900 border border-slate-700 text-white" onChange={(e) => setSelectedVendor(e.target.value)}>
+              <input type="text" required placeholder="NAMA PEMESAN" className="w-full p-3 rounded bg-slate-900 border border-slate-700 uppercase outline-none focus:border-red-600" value={namaPemesan} onChange={(e) => setNamaPemesan(e.target.value)} />
+              <select required className="w-full p-3 rounded bg-slate-900 border border-slate-700" onChange={(e) => setSelectedVendor(e.target.value)}>
                 <option value="">-- PILIH VENDOR --</option>
                 {daftarVendorUnik.map((v, i) => <option key={i} value={v}>{v.toUpperCase()}</option>)}
               </select>
-              <select required value={selectedBarang ? selectedBarang.namaBarang : ""} disabled={!selectedVendor} className="w-full p-3 rounded bg-slate-900 border border-slate-700 disabled:opacity-30 text-white" 
+              <select required value={selectedBarang ? selectedBarang.namaBarang : ""} disabled={!selectedVendor} className="w-full p-3 rounded bg-slate-900 border border-slate-700" 
                 onChange={(e) => setSelectedBarang(barangTersedia.find(b => b.namaBarang === e.target.value))}>
                 <option value="">-- PILIH BARANG --</option>
                 {barangTersedia.map((b, i) => <option key={i} value={b.namaBarang}>{b.namaBarang.toUpperCase()} - ${b.hargaBarang}</option>)}
               </select>
-              <input type="number" required placeholder="Quantity" value={jumlah} className="w-full p-3 rounded bg-slate-900 border border-slate-700 text-white" onChange={(e) => setJumlah(e.target.value)} />
-              <button type="submit" className="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded font-black uppercase text-[10px] tracking-widest transition-all">Add to Cart</button>
+              <input type="number" required placeholder="Quantity" value={jumlah} className="w-full p-3 rounded bg-slate-900 border border-slate-700" onChange={(e) => setJumlah(e.target.value)} />
+              <button type="submit" className="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded font-black uppercase text-[10px] tracking-widest">Add to Cart</button>
             </form>
           </div>
 
@@ -200,7 +199,7 @@ export default function PreOrderPage() {
             <div className="max-h-60 overflow-y-auto space-y-3 mb-6 pr-1">
               {keranjang.map((item) => (
                 <div key={item.idTemp} className="bg-slate-900 p-3 rounded border border-slate-700 flex justify-between items-center text-[10px]">
-                  <div><p className="font-black uppercase italic">{item.namaBarang} x{item.jumlah}</p><p className="text-[8px] text-slate-500 uppercase">{item.namaPemesan}</p></div>
+                  <div><p className="font-black uppercase italic">{item.namaBarang} x{item.jumlah}</p></div>
                   <button onClick={() => setKeranjang(keranjang.filter(i => i.idTemp !== item.idTemp))} className="text-red-500 font-black hover:text-white">REMOVE</button>
                 </div>
               ))}
@@ -229,23 +228,33 @@ export default function PreOrderPage() {
                   <tr key={order.id || i} className="hover:bg-slate-700/20 transition-colors">
                     <td className="p-4">
                       <p className="text-slate-500 mb-1">{order.tanggal} | {order.pemesan}</p>
-                      <p className="font-black text-white">{order.namaBarang} <span className="text-red-500">x{order.jumlah}</span></p>
+                      {/* Memecah string gabungan untuk ditampilkan berbaris di tabel */}
+                      <div className="space-y-0.5">
+                        {order.namaBarang.split(", ").map((itemStr, idx) => {
+                          const [name, qty] = itemStr.split(" x");
+                          return (
+                            <p key={idx} className="font-black text-white italic">
+                              {name} <span className="text-red-500">x{qty}</span>
+                            </p>
+                          );
+                        })}
+                      </div>
                     </td>
                     <td className="p-4 text-center">
                       <button disabled={!isAdmin} onClick={() => updateStatus(order.id, "statusBayar", order.statusBayar)}
-                        className={`px-2 py-1 rounded-[3px] font-black border transition-all ${order.statusBayar === 'Lunas' ? 'bg-green-500 text-black border-green-400' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30'} ${isAdmin ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'}`}>
+                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusBayar === 'Lunas' ? 'bg-green-500 text-black' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30'}`}>
                         {(order.statusBayar || 'Belum').toUpperCase()}
                       </button>
                     </td>
                     <td className="p-4 text-center">
                       <button disabled={!isAdmin} onClick={() => updateStatus(order.id, "statusAmbil", order.statusAmbil)}
-                        className={`px-2 py-1 rounded-[3px] font-black border transition-all ${order.statusAmbil === 'Diambil' ? 'bg-green-500 text-black border-green-400' : 'bg-slate-700 text-slate-400 border-slate-600'} ${isAdmin ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'}`}>
+                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusAmbil === 'Diambil' ? 'bg-green-500 text-black' : 'bg-slate-700 text-slate-400 border-slate-600'}`}>
                         {(order.statusAmbil || 'Belum').toUpperCase()}
                       </button>
                     </td>
                     <td className="p-4 text-right">
                       <button disabled={!isAdmin} onClick={() => updateStatus(order.id, "statusPesanan", order.statusPesanan)}
-                        className={`px-2 py-1 rounded-[3px] font-black border transition-all ${order.statusPesanan === 'Ready' ? 'bg-green-900 text-green-300 border-green-700' : 'bg-slate-900 text-slate-500 border-slate-800'} ${isAdmin ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-default'}`}>
+                        className={`px-2 py-1 rounded-[3px] font-black border ${order.statusPesanan === 'Ready' ? 'bg-green-900 text-green-300' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>
                         {(order.statusPesanan || 'Proses').toUpperCase()}
                       </button>
                     </td>
@@ -254,22 +263,15 @@ export default function PreOrderPage() {
               </tbody>
             </table>
           </div>
-          {totalPages > 1 && (
-            <div className="p-4 bg-slate-900/30 flex justify-center items-center gap-6">
-              <button disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)} className="text-[10px] font-black hover:text-red-500 disabled:opacity-20 uppercase tracking-widest transition-colors">Prev</button>
-              <span className="text-[10px] font-mono text-slate-600 font-bold tracking-widest">{currentPage} / {totalPages}</span>
-              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(currentPage + 1)} className="text-[10px] font-black hover:text-red-500 disabled:opacity-20 uppercase tracking-widest transition-colors">Next</button>
-            </div>
-          )}
         </div>
 
-        {/* RINGKASAN PROCUREMENT */}
+        {/* REKAP PROCUREMENT */}
         <div className="mb-10">
           <h2 className="text-[10px] font-bold text-slate-400 mb-4 uppercase tracking-[0.2em]">Procurement Summary</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-[10px]">
-            {Object.keys(dataRingkasan).length > 0 ? Object.keys(dataRingkasan).map((vendorName) => (
+            {Object.keys(dataRingkasan).map((vendorName) => (
               <div key={vendorName} className="bg-slate-800 p-4 rounded-lg border border-slate-700 border-t-4 border-t-red-600 shadow-xl">
-                <h3 className="text-red-500 font-black mb-3 uppercase italic tracking-wider">{vendorName}</h3>
+                <h3 className="text-red-500 font-black mb-3 uppercase italic">{vendorName}</h3>
                 <ul className="space-y-2">
                   {Object.keys(dataRingkasan[vendorName]).map((itemName) => (
                     <li key={itemName} className="flex justify-between border-b border-slate-700/50 pb-1 text-slate-400 uppercase">
@@ -279,7 +281,7 @@ export default function PreOrderPage() {
                   ))}
                 </ul>
               </div>
-            )) : <p className="text-slate-600 italic text-[10px] uppercase tracking-widest">No pending orders to be picked.</p>}
+            ))}
           </div>
         </div>
       </div>
