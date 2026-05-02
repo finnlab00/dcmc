@@ -1,56 +1,64 @@
 "use client";
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const [accessCode, setAccessCode] = useState("");
-  const [error, setError] = useState(false);
+  const [inputCode, setInputCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Tentukan kode akses tunggal Anda di sini
-  const KODE_RAHASIA = "DCMC2026"; 
+  useEffect(() => {
+    sessionStorage.clear(); // Membersihkan sesi lama
+  }, []);
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (accessCode === KODE_RAHASIA) {
-      // Simpan status login sederhana di session
-      sessionStorage.setItem("isLoggedIn", "true");
-      router.push("/preorder");
+    setIsLoading(true);
+
+    const SECRET_CODE = "DCMC2026";
+
+    if (inputCode === SECRET_CODE) {
+      sessionStorage.setItem("access_granted", "true");
+      // Jeda 500ms agar storage tersimpan sempurna sebelum pindah
+      setTimeout(() => {
+        router.push("/preorder");
+      }, 500);
     } else {
-      setError(true);
-      setAccessCode("");
+      alert("Kode Akses Salah!");
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 font-sans">
-      <div className="max-w-sm w-full bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl text-center">
-        <h1 className="text-4xl font-black text-red-600 italic uppercase mb-2 tracking-tighter">DCMC</h1>
-        <p className="text-slate-500 text-[10px] uppercase tracking-[0.3em] mb-8">Logistics Access</p>
-        
-        <form onSubmit={handleLogin} className="space-y-4">
-          <input 
-            type="password" 
-            placeholder="ENTER ACCESS CODE" 
-            className={`w-full p-4 rounded-lg bg-slate-900 border ${error ? 'border-red-500' : 'border-slate-700'} text-white text-center font-black tracking-[0.5em] outline-none focus:border-red-600 transition-all`}
-            value={accessCode}
-            onChange={(e) => {
-              setAccessCode(e.target.value);
-              setError(false);
-            }}
+    <main style={styles.main}>
+      <div style={styles.card}>
+        <h1 style={styles.title}>DCMC Logistics</h1>
+        <p style={styles.description}>Portal Pre-Order Anggota</p>
+        <form onSubmit={handleLogin} style={styles.form}>
+          <input
+            type="password"
+            placeholder="Masukkan Kode Akses"
+            value={inputCode}
+            onChange={(e) => setInputCode(e.target.value)}
+            style={styles.input}
+            required
           />
-          {error && <p className="text-red-500 text-[9px] uppercase font-bold tracking-widest">Invalid Access Code</p>}
-          
-          <button 
-            type="submit" 
-            className="w-full bg-red-600 hover:bg-red-700 text-white p-4 rounded-lg font-black uppercase tracking-[0.2em] transition-all shadow-lg active:scale-95"
-          >
-            Authorize
+          <button type="submit" disabled={isLoading} style={styles.button}>
+            {isLoading ? "Memverifikasi..." : "Login"}
           </button>
         </form>
-        
-        <p className="mt-8 text-slate-600 text-[8px] uppercase tracking-widest italic">Authorized Personnel Only</p>
       </div>
-    </div>
+    </main>
   );
 }
+
+const styles = {
+  main: { display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", backgroundColor: "#f4f4f4" },
+  card: { width: "100%", maxWidth: "400px", padding: "2rem", textAlign: "center", backgroundColor: "#fff", borderRadius: "10px", boxShadow: "0 4px 6px rgba(0,0,0,0.1)" },
+  title: { fontSize: "1.5rem", fontWeight: "bold", marginBottom: "0.5rem" },
+  description: { color: "#666", marginBottom: "1.5rem" },
+  form: { display: "flex", flexDirection: "column", gap: "1rem" },
+  input: { width: "100%", padding: "0.8rem", borderRadius: "5px", border: "1px solid #ccc", boxSizing: "border-box" },
+  button: { width: "100%", padding: "0.8rem", borderRadius: "5px", border: "none", backgroundColor: "#000", color: "#fff", fontWeight: "bold", cursor: "pointer" }
+};
