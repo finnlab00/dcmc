@@ -21,7 +21,7 @@ export default function PreOrderPage() {
   const [isChecking, setIsChecking] = useState(true);
   const router = useRouter();
 
-  // --- CONFIG: DATA PORTAL ---
+  // --- CONFIG: WEBHOOK DISCORD ANDA ---
   const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1500741728599146667/bOc0W_EHgTVo9LbDOggulqxVJCJvQL1tQ2FMtTFKDaByhA4h_ElZyEqpWh9X8_b7nNWi";
   const WEBSITE_URL = "https://dcmc-sable.vercel.app/"; 
 
@@ -44,7 +44,7 @@ export default function PreOrderPage() {
       const keyV = Object.keys(dataV)[0]; 
       const rawData = dataV[keyV] || [];
 
-      // NORMALISASI DATA: Menangani header Nama_Vendor, Nama_Barang, dll
+      // NORMALISASI DATA: Memastikan kolom terbaca walau penulisan di Sheets berbeda
       const listVendor = rawData.map(item => {
         const normalized = {};
         Object.keys(item).forEach(key => {
@@ -69,11 +69,6 @@ export default function PreOrderPage() {
         setDaftarVendorUnik(unik);
       }
 
-      const resOrder = await fetch("https://api.sheety.co/07ee5f85b2f38ab43582ae89f9342535/gudangDcmc/preOrder");
-      const dataO = await resOrder.json();
-      const keyO = Object.keys(dataO)[0];
-      setOrderList((dataO[keyO] || []).filter(o => o.archived !== "YES").reverse());
-
     } catch (err) {
       console.error("Gagal sinkronisasi database:", err);
     }
@@ -93,7 +88,7 @@ export default function PreOrderPage() {
         });
       }
       refreshData();
-    } catch (err) { alert("Gagal memperbarui status di Google Sheets."); }
+    } catch (err) { alert("Gagal memperbarui status."); }
     setLoading(false);
   };
 
@@ -107,8 +102,8 @@ export default function PreOrderPage() {
       embeds: [{
         title: `📢 PEMESANAN DI ${vendorName} ${isOpening ? "DIBUKA" : "DITUTUP"}!`,
         description: isOpening 
-          ? `Silakan lakukan pemesanan melalui portal resmi:\n🔗 ${WEBSITE_URL}`
-          : "Sesi pemesanan telah berakhir. Tim logistik sedang memproses pengadaan barang.",
+          ? `Silakan lakukan pemesanan melalui portal:\n🔗 ${WEBSITE_URL}`
+          : "Sesi pemesanan berakhir. Admin sedang memproses data.",
         color: isOpening ? 3066993 : 15158332,
         fields: isOpening ? [{ name: "📋 ITEM TERSEDIA:", value: listBarangText || "Cek di portal" }] : [],
         footer: { text: "📡 DCMC System Alert" },
@@ -118,8 +113,8 @@ export default function PreOrderPage() {
 
     try {
       await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(message) });
-      alert(`Berhasil! Notifikasi ${type} untuk ${vendorName} sudah dikirim ke Discord.`);
-    } catch (e) { alert("Gagal mengirim pesan ke Discord."); }
+      alert(`Notifikasi ${type} terkirim!`);
+    } catch (e) { alert("Gagal kirim notif."); }
   };
 
   if (isChecking || !isAuthorized) return null;
@@ -137,7 +132,7 @@ export default function PreOrderPage() {
           <button onClick={() => { sessionStorage.clear(); router.push("/"); }} className="text-xs font-bold text-slate-500 hover:text-white">EXIT</button>
         </header>
 
-        {/* VENDOR CONTROL CENTER */}
+        {/* VENDOR CONTROL CENTER (ADMIN) */}
         {isAdmin && (
           <div className="bg-slate-800 p-4 rounded-xl border border-indigo-900/50 mb-8 shadow-lg">
             <h2 className="text-[10px] font-bold text-indigo-400 mb-4 tracking-[0.2em]">VENDOR CONTROL CENTER</h2>
@@ -149,17 +144,17 @@ export default function PreOrderPage() {
                   <div key={vName} className={`p-3 rounded border flex flex-col gap-2 transition-all ${isOpen ? 'bg-green-600/10 border-green-600' : 'bg-red-600/10 border-red-600'}`}>
                     <span className="font-black text-white">{vName}</span>
                     <div className="flex gap-1">
-                      <button disabled={loading} onClick={() => toggleVendorStatus(vName, vInfo.statusOpen)} className="px-2 py-1 bg-slate-700 rounded text-[7px] font-bold hover:bg-slate-600 transition-colors">
+                      <button disabled={loading} onClick={() => toggleVendorStatus(vName, vInfo.statusOpen)} className="px-2 py-1 bg-slate-700 rounded text-[7px] font-bold hover:bg-slate-600">
                         {isOpen ? "⛔ CLOSE PO" : "🔓 OPEN PO"}
                       </button>
-                      <button onClick={() => sendDiscordNotif(isOpen ? "OPEN" : "CLOSED", vName)} className="px-2 py-1 bg-indigo-600 rounded text-[7px] font-bold italic hover:bg-indigo-500 transition-colors">
+                      <button onClick={() => sendDiscordNotif(isOpen ? "OPEN" : "CLOSED", vName)} className="px-2 py-1 bg-indigo-600 rounded text-[7px] font-bold italic hover:bg-indigo-500">
                         📢 NOTIF
                       </button>
                     </div>
                   </div>
                 );
               })}
-              {allVendorData.length === 0 && <p className="text-slate-600 italic text-[9px]">MENUNGGU DATA DARI GOOGLE SHEETS...</p>}
+              {allVendorData.length === 0 && <p className="text-slate-600 italic">Memuat data vendor...</p>}
             </div>
           </div>
         )}
@@ -195,14 +190,14 @@ export default function PreOrderPage() {
             </form>
           </div>
 
-          {/* KERANJANG */}
+          {/* CART */}
           <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl h-fit">
             <h2 className="text-[10px] font-bold text-red-500 mb-6 flex justify-between uppercase font-black italic">CART <span>{keranjang.length}</span></h2>
             <div className="max-h-40 overflow-y-auto space-y-2 mb-6">
               {keranjang.map((item) => (
                 <div key={item.idTemp} className="bg-slate-900 p-3 rounded border border-slate-700 flex justify-between items-center">
                   <p className="font-black italic">{item.namaBarang} <span className="text-red-500">x{item.jumlah}</span></p>
-                  <button onClick={() => setKeranjang(keranjang.filter(i => i.idTemp !== item.idTemp))} className="text-red-500 font-bold hover:text-white transition-colors">REMOVE</button>
+                  <button onClick={() => setKeranjang(keranjang.filter(i => i.idTemp !== item.idTemp))} className="text-red-500 font-bold hover:text-white">REMOVE</button>
                 </div>
               ))}
               {keranjang.length === 0 && <p className="text-center text-slate-600 italic py-10 uppercase text-[9px] tracking-widest">KERANJANG KOSONG</p>}
