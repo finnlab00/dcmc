@@ -95,13 +95,13 @@ export default function PreOrderPage() {
         body: JSON.stringify({ condition: { Nama_Vendor: vName, Status_Pesanan: "PROSES" }, set: { Status_Pesanan: "READY" } })
       });
       refreshData();
-      alert("Status diperbarui!");
+      alert("Semua barang vendor telah tiba!");
     } catch (err) { alert("Gagal."); }
     setLoading(false);
   };
 
   const archiveVendorOrders = async (vName) => {
-    if (!confirm(`ARCHIVE SEMUA PESANAN ${vName}? Data akan hilang dari portal tapi tersimpan di Sheets.`)) return;
+    if (!confirm(`ARCHIVE SEMUA PESANAN ${vName}?`)) return;
     setLoading(true);
     try {
       await fetch(`${STEIN_URL}/preOrder`, {
@@ -110,38 +110,29 @@ export default function PreOrderPage() {
         body: JSON.stringify({ condition: { Nama_Vendor: vName }, set: { Archived: "YES" } })
       });
       refreshData();
-      alert("Pesanan diarsipkan.");
+      alert("PO Berhasil diarsipkan.");
     } catch (err) { alert("Gagal."); }
     setLoading(false);
   };
 
-  // PENGUMUMAN DISCORD YANG DIPERBARUI
   const sendDiscordAnnouncement = async (type, vendorName) => {
     const isOpening = type === "OPEN";
     const vendorItems = allVendorData.filter(v => v.namaVendor === vendorName);
-    
-    // Membuat daftar item dengan format yang rapi
-    const itemRows = vendorItems.map(item => 
-      `🔹 **${item.namaBarang}** — \`$${parseInt(item.hargaBarang).toLocaleString()}\``
-    ).join("\n");
-
+    const itemRows = vendorItems.map(item => `🔹 **${item.namaBarang}** — \`$${parseInt(item.hargaBarang).toLocaleString()}\``).join("\n");
     const message = {
       content: isOpening ? ` @everyone 📢 **PRE-ORDER ALERT!**` : `📢 **PO CLOSED**`,
       embeds: [{
         title: isOpening ? `✅ PEMESANAN ${vendorName} DIBUKA!` : `❌ PO ${vendorName} TELAH DITUTUP`,
         description: isOpening 
-          ? `Halo team! Pre-order untuk vendor **${vendorName}** kini telah dibuka. Jangan sampai kehabisan!\n\n🛒 **PESAN DI SINI:**\n${WEBSITE_URL}`
-          : `Sesi pemesanan untuk **${vendorName}** sudah berakhir. Mohon tunggu update logistik selanjutnya.`,
+          ? `Halo team! Pre-order untuk vendor **${vendorName}** kini telah dibuka.\n\n🛒 **PESAN DI SINI:**\n${WEBSITE_URL}`
+          : `Sesi pemesanan untuk **${vendorName}** sudah berakhir.`,
         color: isOpening ? 3066993 : 15158332,
-        fields: isOpening ? [
-          { name: "📋 DAFTAR HARGA ITEM:", value: itemRows || "Cek di website", inline: false }
-        ] : [],
-        footer: { text: "DCMC Logistics • Warehouse System v2" },
+        fields: isOpening ? [{ name: "📋 DAFTAR HARGA ITEM:", value: itemRows || "Cek di website" }] : [],
         timestamp: new Date()
       }]
     };
     await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(message) });
-    alert("Pengumuman berhasil dikirim ke Discord!");
+    alert("Notif Terkirim!");
   };
 
   const handleCheckout = async () => {
@@ -149,7 +140,6 @@ export default function PreOrderPage() {
     setLoading(true);
     try {
       const listBarangString = keranjang.map(i => `${i.namaBarang} (${i.jumlah})`).join(", ");
-      const totalBayar = keranjang.reduce((acc, curr) => acc + curr.subtotal, 0);
       await fetch(`${STEIN_URL}/preOrder`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -158,10 +148,11 @@ export default function PreOrderPage() {
           Nama_Vendor: keranjang[0].namaVendor,
           Nama_Barang: listBarangString,
           Jumlah: keranjang.reduce((acc, curr) => acc + parseInt(curr.jumlah), 0),
-          Subtotal: totalBayar,
+          Subtotal: keranjang.reduce((acc, curr) => acc + curr.subtotal, 0),
           Tanggal: new Date().toLocaleString("id-ID"),
           Status_Bayar: "BELUM",
           Status_Pesanan: "PROSES",
+          Status_Ambil: "BELUM",
           Archived: "NO"
         }])
       });
@@ -190,7 +181,7 @@ export default function PreOrderPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         <header className="flex justify-between items-center border-b border-slate-800 pb-4">
           <h1 className="text-3xl font-black text-red-600 italic tracking-tighter">DCMC LOGISTICS</h1>
-          <button onClick={() => { const p = prompt("Pass:"); if(p === "ADMIN123") setIsAdmin(!isAdmin); }} className={`px-3 py-1 rounded text-[8px] font-bold ${isAdmin ? 'bg-red-600 animate-pulse' : 'bg-slate-800 text-slate-500'}`}>
+          <button onClick={() => { const p = prompt("Pass:"); if(p === "ADMIN123") setIsAdmin(!isAdmin); }} className={`px-3 py-1 rounded text-[8px] font-bold ${isAdmin ? 'bg-red-600' : 'bg-slate-800 text-slate-500'}`}>
             {isAdmin ? "ADMIN MODE" : "MEMBER MODE"}
           </button>
         </header>
@@ -219,8 +210,8 @@ export default function PreOrderPage() {
                     ))}
                   </div>
                   <div className="grid grid-cols-2 gap-1 mt-2">
-                    <button onClick={() => sendDiscordAnnouncement(isOpen ? "OPEN" : "CLOSED", vName)} className="bg-indigo-600 py-1.5 rounded text-[7px] font-black italic hover:bg-indigo-500 transition-all">📢 ANNOUNCE</button>
-                    <button onClick={() => markAllArrived(vName)} className="bg-blue-600 py-1.5 rounded text-[7px] font-black italic hover:bg-blue-500 transition-all">📦 ARRIVED ALL</button>
+                    <button onClick={() => sendDiscordAnnouncement(isOpen ? "OPEN" : "CLOSED", vName)} className="bg-indigo-600 py-1.5 rounded text-[7px] font-black italic hover:bg-indigo-500">📢 ANNOUNCE</button>
+                    <button onClick={() => markAllArrived(vName)} className="bg-blue-600 py-1.5 rounded text-[7px] font-black italic hover:bg-blue-500">📦 ARRIVED ALL</button>
                     <button onClick={() => {
                         const text = itemsRekap.map(([n, q]) => `• ${n} (x${q})`).join("\n");
                         navigator.clipboard.writeText(`REKAP ${vName}:\n${text}`);
@@ -235,7 +226,8 @@ export default function PreOrderPage() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl">
+          {/* FORM */}
+          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl h-fit">
             <h2 className="text-[10px] font-bold text-slate-400 mb-6 uppercase tracking-widest">New Order</h2>
             <form onSubmit={(e) => {
               e.preventDefault();
@@ -258,37 +250,40 @@ export default function PreOrderPage() {
             </form>
           </div>
 
+          {/* CART */}
           <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl flex flex-col justify-between">
-            <h2 className="text-[10px] font-bold text-red-500 mb-6 italic tracking-widest uppercase">Cart ({keranjang.length})</h2>
+            <h2 className="text-[10px] font-bold text-red-500 mb-6 italic tracking-widest uppercase text-center">Your Cart ({keranjang.length})</h2>
             <div className="space-y-2 mb-6 max-h-40 overflow-y-auto">
               {keranjang.map((item) => (
                 <div key={item.idTemp} className="bg-slate-900 p-2 rounded border border-slate-700 flex justify-between items-center text-[10px]">
                   <span className="font-bold italic">{item.namaBarang} x{item.jumlah}</span>
-                  <button onClick={() => setKeranjang(keranjang.filter(i => i.idTemp !== item.idTemp))} className="text-red-500 font-bold">X</button>
+                  <button onClick={() => setKeranjang(keranjang.filter(i => i.idTemp !== item.idTemp))} className="text-red-500 font-bold">REMOVE</button>
                 </div>
               ))}
             </div>
             {keranjang.length > 0 && (
               <div className="border-t border-red-600/30 pt-4">
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-slate-400 font-bold">TOTAL ESTIMASI:</span>
+                  <span className="text-slate-400 font-bold text-[9px]">TOTAL ESTIMASI:</span>
                   <span className="text-xl font-black text-green-500">${keranjang.reduce((acc, curr) => acc + curr.subtotal, 0).toLocaleString()}</span>
                 </div>
-                <button onClick={handleCheckout} className="w-full bg-red-600 p-4 rounded font-black tracking-widest italic hover:bg-red-500 transition-all">CHECKOUT NOW</button>
+                <button onClick={handleCheckout} className="w-full bg-red-600 p-4 rounded font-black tracking-widest italic hover:bg-red-700">CHECKOUT NOW</button>
               </div>
             )}
           </div>
         </div>
 
+        {/* MANAGEMENT PESANAN DENGAN STATUS AMBIL */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
           <table className="w-full text-left border-collapse text-[9px]">
             <thead>
               <tr className="bg-slate-900 text-slate-500 text-[8px]">
-                <th className="p-4">TANGGAL</th>
-                <th className="p-4">PEMESAN / ITEMS</th>
-                <th className="p-4 text-center">BAYAR</th>
-                <th className="p-4 text-center">STATUS</th>
-                <th className="p-4 text-right">TOTAL</th>
+                <th className="p-4 uppercase">Tanggal</th>
+                <th className="p-4 uppercase">Pemesan / Items</th>
+                <th className="p-4 text-center uppercase">Bayar</th>
+                <th className="p-4 text-center uppercase">Status</th>
+                <th className="p-4 text-center uppercase text-indigo-400">Ambil</th>
+                <th className="p-4 text-right uppercase">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
@@ -298,7 +293,7 @@ export default function PreOrderPage() {
                   <td className="p-4"><span className="font-bold text-red-500">{order.Nama_Pemesan}</span><br/><span className="text-slate-400 italic">{order.Nama_Barang}</span></td>
                   <td className="p-4 text-center">
                     <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, "Status_Bayar", order.Status_Bayar === "LUNAS" ? "BELUM" : "LUNAS")}
-                      className={`px-2 py-0.5 rounded text-[7px] font-black ${order.Status_Bayar === "LUNAS" ? 'bg-green-600' : 'bg-slate-700 text-slate-400'}`}>
+                      className={`px-2 py-0.5 rounded text-[7px] font-black ${order.Status_Bayar === "LUNAS" ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
                       {order.Status_Bayar || "BELUM"}
                     </button>
                   </td>
@@ -306,6 +301,12 @@ export default function PreOrderPage() {
                     <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, "Status_Pesanan", order.Status_Pesanan === "READY" ? "PROSES" : "READY")}
                       className={`px-2 py-0.5 rounded text-[7px] font-black ${order.Status_Pesanan === "READY" ? 'bg-yellow-600 text-black' : 'bg-slate-700 text-slate-400'}`}>
                       {order.Status_Pesanan || "PROSES"}
+                    </button>
+                  </td>
+                  <td className="p-4 text-center">
+                    <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, "Status_Ambil", order.Status_Ambil === "SUDAH" ? "BELUM" : "SUDAH")}
+                      className={`px-2 py-0.5 rounded text-[7px] font-black ${order.Status_Ambil === "SUDAH" ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      {order.Status_Ambil || "BELUM"}
                     </button>
                   </td>
                   <td className="p-4 text-right font-black text-green-500">${parseInt(order.Subtotal).toLocaleString()}</td>
