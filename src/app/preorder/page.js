@@ -21,9 +21,10 @@ export default function PreOrderPage() {
   const [isChecking, setIsChecking] = useState(true);
   const router = useRouter();
 
-  // --- CONFIG: WEBHOOK DISCORD ANDA ---
+  // --- CONFIG: INTEGRASI STEIN & DISCORD ---
+  const STEIN_URL = "https://api.steinhq.com/v1/storages/69f83da192b1163e97c0e17a"; 
   const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1500741728599146667/bOc0W_EHgTVo9LbDOggulqxVJCJvQL1tQ2FMtTFKDaByhA4h_ElZyEqpWh9X8_b7nNWi";
-  const WEBSITE_URL = "https://dcmc-sable.vercel.app/"; 
+  const WEBSITE_URL = "https://dcmc-sable.vercel.app/";
 
   useEffect(() => {
     const access = sessionStorage.getItem("access_granted");
@@ -38,57 +39,58 @@ export default function PreOrderPage() {
 
   const refreshData = async () => {
     try {
-      const resVendor = await fetch("https://api.sheety.co/07ee5f85b2f38ab43582ae89f9342535/gudangDcmc/vendor");
-      const dataV = await resVendor.json();
-      
-      const keyV = Object.keys(dataV)[0]; 
-      const rawData = dataV[keyV] || [];
+      // Membaca data Vendor dari Stein
+      const resV = await fetch(`${STEIN_URL}/vendor`);
+      const rawData = await resV.json();
 
-      // NORMALISASI DATA: Memastikan kolom terbaca walau penulisan di Sheets berbeda
-      const listVendor = rawData.map(item => {
-        const normalized = {};
-        Object.keys(item).forEach(key => {
-          const cleanKey = key.replace(/[_\s]+/g, '').toLowerCase();
-          normalized[cleanKey] = item[key];
-        });
+      if (Array.isArray(rawData)) {
+        // Normalisasi data untuk menangani header Nama_Vendor, Nama_Barang, dll
+        const normalized = rawData.map(item => ({
+          namaVendor: item.Nama_Vendor || item.namaVendor || "",
+          namaBarang: item.Nama_Barang || item.namaBarang || "",
+          hargaBarang: item.Harga_Barang || item.hargaBarang || 0,
+          statusOpen: (String(item.Status_Open || item.statusOpen || "")).toUpperCase()
+        }));
+
+        setAllVendorData(normalized);
         
-        return {
-          id: normalized.id,
-          namaVendor: normalized.namavendor || "",
-          namaBarang: normalized.namabarang || "",
-          hargaBarang: normalized.hargabarang || 0,
-          statusOpen: (String(normalized.statusopen || "")).toUpperCase()
-        };
-      });
-
-      if (listVendor.length > 0) {
-        setAllVendorData(listVendor);
-        // Dropdown member hanya menampilkan vendor yang statusnya YES
-        const openVendors = listVendor.filter(v => v.statusOpen === "YES");
+        // Filter vendor yang statusnya YES untuk dropdown Member
+        const openVendors = normalized.filter(v => v.statusOpen === "YES");
         const unik = [...new Set(openVendors.map(v => v.namaVendor))].filter(n => n !== "");
         setDaftarVendorUnik(unik);
       }
 
+      // Membaca data PreOrder (opsional, untuk tabel riwayat jika ada)
+      const resO = await fetch(`${STEIN_URL}/preOrder`);
+      const listOrder = await resO.json();
+      if (Array.isArray(listOrder)) {
+        setOrderList(listOrder.reverse());
+      }
+
     } catch (err) {
-      console.error("Gagal sinkronisasi database:", err);
+      console.error("Gagal sinkronisasi Stein:", err);
     }
   };
 
   const toggleVendorStatus = async (vName, currentStatus) => {
     setLoading(true);
     const nextStatus = currentStatus === "YES" ? "NO" : "YES";
-    const vendorRows = allVendorData.filter(v => v.namaVendor === vName);
     
     try {
-      for (const row of vendorRows) {
-        await fetch(`https://api.sheety.co/07ee5f85b2f38ab43582ae89f9342535/gudangDcmc/vendor/${row.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ vendor: { statusOpen: nextStatus } })
-        });
-      }
-      refreshData();
-    } catch (err) { alert("Gagal memperbarui status."); }
+      // Stein PUT: Update semua baris yang memiliki Nama_Vendor tersebut
+      await fetch(`${STEIN_URL}/vendor`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          condition: { Nama_Vendor: vName },
+          set: { Status_Open: nextStatus }
+        })
+      });
+      await refreshData();
+      alert(`Status ${vName} berhasil diubah ke ${nextStatus}`);
+    } catch (err) {
+      alert("Gagal update status via Stein.");
+    }
     setLoading(false);
   };
 
@@ -102,8 +104,8 @@ export default function PreOrderPage() {
       embeds: [{
         title: `📢 PEMESANAN DI ${vendorName} ${isOpening ? "DIBUKA" : "DITUTUP"}!`,
         description: isOpening 
-          ? `Silakan lakukan pemesanan melalui portal:\n🔗 ${WEBSITE_URL}`
-          : "Sesi pemesanan berakhir. Admin sedang memproses data.",
+          ? `Silakan lakukan pemesanan melalui portal resmi:\n🔗 ${WEBSITE_URL}`
+          : "Sesi pemesanan telah berakhir. Admin sedang memproses data gudang.",
         color: isOpening ? 3066993 : 15158332,
         fields: isOpening ? [{ name: "📋 ITEM TERSEDIA:", value: listBarangText || "Cek di portal" }] : [],
         footer: { text: "📡 DCMC System Alert" },
@@ -111,10 +113,8 @@ export default function PreOrderPage() {
       }]
     };
 
-    try {
-      await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(message) });
-      alert(`Notifikasi ${type} terkirim!`);
-    } catch (e) { alert("Gagal kirim notif."); }
+    await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(message) });
+    alert(`Notifikasi Discord untuk ${vendorName} Terkirim!`);
   };
 
   if (isChecking || !isAuthorized) return null;
@@ -132,7 +132,7 @@ export default function PreOrderPage() {
           <button onClick={() => { sessionStorage.clear(); router.push("/"); }} className="text-xs font-bold text-slate-500 hover:text-white">EXIT</button>
         </header>
 
-        {/* VENDOR CONTROL CENTER (ADMIN) */}
+        {/* VENDOR CONTROL CENTER (ADMIN ONLY) */}
         {isAdmin && (
           <div className="bg-slate-800 p-4 rounded-xl border border-indigo-900/50 mb-8 shadow-lg">
             <h2 className="text-[10px] font-bold text-indigo-400 mb-4 tracking-[0.2em]">VENDOR CONTROL CENTER</h2>
@@ -144,23 +144,23 @@ export default function PreOrderPage() {
                   <div key={vName} className={`p-3 rounded border flex flex-col gap-2 transition-all ${isOpen ? 'bg-green-600/10 border-green-600' : 'bg-red-600/10 border-red-600'}`}>
                     <span className="font-black text-white">{vName}</span>
                     <div className="flex gap-1">
-                      <button disabled={loading} onClick={() => toggleVendorStatus(vName, vInfo.statusOpen)} className="px-2 py-1 bg-slate-700 rounded text-[7px] font-bold hover:bg-slate-600">
+                      <button disabled={loading} onClick={() => toggleVendorStatus(vName, vInfo.statusOpen)} className="px-2 py-1 bg-slate-700 rounded text-[7px] font-bold hover:bg-slate-600 transition-colors">
                         {isOpen ? "⛔ CLOSE PO" : "🔓 OPEN PO"}
                       </button>
-                      <button onClick={() => sendDiscordNotif(isOpen ? "OPEN" : "CLOSED", vName)} className="px-2 py-1 bg-indigo-600 rounded text-[7px] font-bold italic hover:bg-indigo-500">
+                      <button onClick={() => sendDiscordNotif(isOpen ? "OPEN" : "CLOSED", vName)} className="px-2 py-1 bg-indigo-600 rounded text-[7px] font-bold italic hover:bg-indigo-500 transition-colors">
                         📢 NOTIF
                       </button>
                     </div>
                   </div>
                 );
               })}
-              {allVendorData.length === 0 && <p className="text-slate-600 italic">Memuat data vendor...</p>}
+              {allVendorData.length === 0 && <p className="text-slate-600 italic py-4">Menunggu data dari Stein API...</p>}
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          {/* FORM INPUT */}
+          {/* FORM INPUT PEMESANAN */}
           <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit shadow-2xl">
             <h2 className="text-[10px] font-bold text-slate-400 mb-6 tracking-[0.2em]">NEW ORDER</h2>
             <form onSubmit={(e) => {
@@ -190,14 +190,14 @@ export default function PreOrderPage() {
             </form>
           </div>
 
-          {/* CART */}
+          {/* KERANJANG BELANJA */}
           <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-2xl h-fit">
-            <h2 className="text-[10px] font-bold text-red-500 mb-6 flex justify-between uppercase font-black italic">CART <span>{keranjang.length}</span></h2>
+            <h2 className="text-[10px] font-bold text-red-500 mb-6 flex justify-between uppercase font-black italic tracking-widest">CART <span>{keranjang.length}</span></h2>
             <div className="max-h-40 overflow-y-auto space-y-2 mb-6">
               {keranjang.map((item) => (
                 <div key={item.idTemp} className="bg-slate-900 p-3 rounded border border-slate-700 flex justify-between items-center">
                   <p className="font-black italic">{item.namaBarang} <span className="text-red-500">x{item.jumlah}</span></p>
-                  <button onClick={() => setKeranjang(keranjang.filter(i => i.idTemp !== item.idTemp))} className="text-red-500 font-bold hover:text-white">REMOVE</button>
+                  <button onClick={() => setKeranjang(keranjang.filter(i => i.idTemp !== item.idTemp))} className="text-red-500 font-bold hover:text-white transition-colors">REMOVE</button>
                 </div>
               ))}
               {keranjang.length === 0 && <p className="text-center text-slate-600 italic py-10 uppercase text-[9px] tracking-widest">KERANJANG KOSONG</p>}
