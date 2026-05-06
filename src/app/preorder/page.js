@@ -163,9 +163,7 @@ export default function PreOrderPage() {
     setLoading(false);
   };
 
-  // PERBAIKAN: REAL-TIME OPTIMISTIC UPDATE
   const updateOrderStatus = async (tanggal, pemesan, field, value) => {
-    // 1. Langsung ubah state lokal agar UI berubah seketika tanpa delay
     setOrderList(prevList => 
       prevList.map(order => 
         (order.Tanggal === tanggal && order.Nama_Pemesan === pemesan) 
@@ -173,17 +171,13 @@ export default function PreOrderPage() {
           : order
       )
     );
-
-    // 2. Eksekusi API di latar belakang
     try {
       await fetch(`${STEIN_URL}/preOrder`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ condition: { Tanggal: tanggal, Nama_Pemesan: pemesan }, set: { [field]: value } })
       });
-      // Menghapus refreshData() di sini agar tidak menyebabkan re-render yang mengakibatkan jeda/flicker
     } catch (err) { 
-      // Jika gagal kirim ke database, kembalikan data dengan merefresh
       console.error(err);
       alert("Koneksi gagal, menyinkronkan ulang data...");
       refreshData(); 
@@ -220,7 +214,7 @@ export default function PreOrderPage() {
                   </div>
                   <div className="space-y-1 min-h-[50px]">
                     {itemsRekap.map(([name, qty]) => (
-                      <div key={name} className="flex justify-between font-bold border-b border-white/5">
+                      <div key={name} className="flex justify-between font-bold border-b border-white/5 pb-1">
                         <span>{name}</span> <span className="text-red-500">x{qty}</span>
                       </div>
                     ))}
@@ -289,7 +283,7 @@ export default function PreOrderPage() {
           </div>
         </div>
 
-        {/* MANAGEMENT PESANAN DENGAN STATUS AMBIL */}
+        {/* MANAGEMENT PESANAN */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
           <table className="w-full text-left border-collapse text-[9px]">
             <thead>
@@ -331,6 +325,39 @@ export default function PreOrderPage() {
             </tbody>
           </table>
         </div>
+
+        {/* TAMBAHAN BARU: RINGKASAN MEMBER (HANYA VENDOR AKTIF & TANPA TOMBOL) */}
+        {!isAdmin && (
+          <div className="pt-6 border-t border-slate-700/50 mt-8">
+            <h2 className="text-[10px] font-bold text-slate-400 mb-6 uppercase tracking-widest text-center">Rekap PO Aktif (View Only)</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[...new Set(allVendorData.map(v => v.namaVendor))]
+                .filter(vName => allVendorData.find(v => v.namaVendor === vName)?.statusOpen === "YES")
+                .map((vName) => {
+                  const itemsRekap = getRekapVendor(vName);
+                  return (
+                    <div key={vName} className="p-4 rounded-xl border border-green-600/30 bg-green-600/5 flex flex-col gap-3">
+                      <div className="border-b border-white/10 pb-2">
+                        <span className="text-[14px] font-black">{vName}</span>
+                        <p className="text-[8px] font-bold text-green-500">PO OPEN</p>
+                      </div>
+                      <div className="space-y-1">
+                        {itemsRekap.map(([name, qty]) => (
+                          <div key={name} className="flex justify-between font-bold border-b border-white/5 pb-1">
+                            <span>{name}</span> <span className="text-red-500">x{qty}</span>
+                          </div>
+                        ))}
+                        {itemsRekap.length === 0 && (
+                          <p className="text-[9px] italic text-slate-600">Belum ada pesanan masuk.</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
