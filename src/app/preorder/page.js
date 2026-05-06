@@ -163,15 +163,31 @@ export default function PreOrderPage() {
     setLoading(false);
   };
 
+  // PERBAIKAN: REAL-TIME OPTIMISTIC UPDATE
   const updateOrderStatus = async (tanggal, pemesan, field, value) => {
+    // 1. Langsung ubah state lokal agar UI berubah seketika tanpa delay
+    setOrderList(prevList => 
+      prevList.map(order => 
+        (order.Tanggal === tanggal && order.Nama_Pemesan === pemesan) 
+          ? { ...order, [field]: value } 
+          : order
+      )
+    );
+
+    // 2. Eksekusi API di latar belakang
     try {
       await fetch(`${STEIN_URL}/preOrder`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ condition: { Tanggal: tanggal, Nama_Pemesan: pemesan }, set: { [field]: value } })
       });
-      refreshData();
-    } catch (err) { alert("Gagal."); }
+      // Menghapus refreshData() di sini agar tidak menyebabkan re-render yang mengakibatkan jeda/flicker
+    } catch (err) { 
+      // Jika gagal kirim ke database, kembalikan data dengan merefresh
+      console.error(err);
+      alert("Koneksi gagal, menyinkronkan ulang data...");
+      refreshData(); 
+    }
   };
 
   if (isChecking || !isAuthorized) return null;
@@ -293,19 +309,19 @@ export default function PreOrderPage() {
                   <td className="p-4"><span className="font-bold text-red-500">{order.Nama_Pemesan}</span><br/><span className="text-slate-400 italic">{order.Nama_Barang}</span></td>
                   <td className="p-4 text-center">
                     <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, "Status_Bayar", order.Status_Bayar === "LUNAS" ? "BELUM" : "LUNAS")}
-                      className={`px-2 py-0.5 rounded text-[7px] font-black ${order.Status_Bayar === "LUNAS" ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      className={`px-2 py-0.5 rounded text-[7px] font-black transition-colors ${order.Status_Bayar === "LUNAS" ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
                       {order.Status_Bayar || "BELUM"}
                     </button>
                   </td>
                   <td className="p-4 text-center">
                     <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, "Status_Pesanan", order.Status_Pesanan === "READY" ? "PROSES" : "READY")}
-                      className={`px-2 py-0.5 rounded text-[7px] font-black ${order.Status_Pesanan === "READY" ? 'bg-yellow-600 text-black' : 'bg-slate-700 text-slate-400'}`}>
+                      className={`px-2 py-0.5 rounded text-[7px] font-black transition-colors ${order.Status_Pesanan === "READY" ? 'bg-yellow-600 text-black' : 'bg-slate-700 text-slate-400'}`}>
                       {order.Status_Pesanan || "PROSES"}
                     </button>
                   </td>
                   <td className="p-4 text-center">
                     <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, "Status_Ambil", order.Status_Ambil === "SUDAH" ? "BELUM" : "SUDAH")}
-                      className={`px-2 py-0.5 rounded text-[7px] font-black ${order.Status_Ambil === "SUDAH" ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                      className={`px-2 py-0.5 rounded text-[7px] font-black transition-colors ${order.Status_Ambil === "SUDAH" ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
                       {order.Status_Ambil || "BELUM"}
                     </button>
                   </td>
