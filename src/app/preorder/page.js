@@ -15,6 +15,9 @@ export default function PreOrderPage() {
   const [jumlah, setJumlah] = useState("");
   const [keranjang, setKeranjang] = useState([]);
   
+  // STATE BARU: Filter Belum Diambil
+  const [filterBelumAmbil, setFilterBelumAmbil] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false); 
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -135,26 +138,43 @@ export default function PreOrderPage() {
     alert("Notif Terkirim!");
   };
 
+  // PERBAIKAN BUG GROUPING VENDOR
   const handleCheckout = async () => {
     if (keranjang.length === 0) return;
     setLoading(true);
     try {
-      const listBarangString = keranjang.map(i => `${i.namaBarang} (${i.jumlah})`).join(", ");
-      await fetch(`${STEIN_URL}/preOrder`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify([{
+      // Kelompokkan item di keranjang berdasarkan Nama Vendor
+      const groupedCart = keranjang.reduce((acc, item) => {
+        if (!acc[item.namaVendor]) acc[item.namaVendor] = [];
+        acc[item.namaVendor].push(item);
+        return acc;
+      }, {});
+
+      // Buat array data untuk setiap vendor yang ada di keranjang
+      const dataToPost = Object.keys(groupedCart).map(vendor => {
+        const items = groupedCart[vendor];
+        const listBarangString = items.map(i => `${i.namaBarang} (${i.jumlah})`).join(", ");
+        const totalBayar = items.reduce((acc, curr) => acc + curr.subtotal, 0);
+        const totalQty = items.reduce((acc, curr) => acc + parseInt(curr.jumlah), 0);
+        
+        return {
           Nama_Pemesan: namaPemesan,
-          Nama_Vendor: keranjang[0].namaVendor,
+          Nama_Vendor: vendor,
           Nama_Barang: listBarangString,
-          Jumlah: keranjang.reduce((acc, curr) => acc + parseInt(curr.jumlah), 0),
-          Subtotal: keranjang.reduce((acc, curr) => acc + curr.subtotal, 0),
+          Jumlah: totalQty,
+          Subtotal: totalBayar,
           Tanggal: new Date().toLocaleString("id-ID"),
           Status_Bayar: "BELUM",
           Status_Pesanan: "PROSES",
           Status_Ambil: "BELUM",
           Archived: "NO"
-        }])
+        };
+      });
+
+      await fetch(`${STEIN_URL}/preOrder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToPost)
       });
       setKeranjang([]);
       refreshData();
@@ -163,10 +183,11 @@ export default function PreOrderPage() {
     setLoading(false);
   };
 
-  const updateOrderStatus = async (tanggal, pemesan, field, value) => {
+  // PERBAIKAN: MENAMBAHKAN VENDOR SEBAGAI PENANDA SPESIFIK AGAR TIDAK DOUBLE UPDATE
+  const updateOrderStatus = async (tanggal, pemesan, vendor, field, value) => {
     setOrderList(prevList => 
       prevList.map(order => 
-        (order.Tanggal === tanggal && order.Nama_Pemesan === pemesan) 
+        (order.Tanggal === tanggal && order.Nama_Pemesan === pemesan && order.Nama_Vendor === vendor) 
           ? { ...order, [field]: value } 
           : order
       )
@@ -175,7 +196,7 @@ export default function PreOrderPage() {
       await fetch(`${STEIN_URL}/preOrder`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ condition: { Tanggal: tanggal, Nama_Pemesan: pemesan }, set: { [field]: value } })
+        body: JSON.stringify({ condition: { Tanggal: tanggal, Nama_Pemesan: pemesan, Nama_Vendor: vendor }, set: { [field]: value } })
       });
     } catch (err) { 
       console.error(err);
@@ -183,6 +204,27 @@ export default function PreOrderPage() {
       refreshData(); 
     }
   };
+
+  // FITUR BARU: CANCEL PESANAN ADMIN
+  const cancelOrder = async (tanggal, pemesan, vendor) => {
+    if (!confirm(`Yakin membatalkan pesanan ini untuk ${pemesan}? Data akan dihapus secara permanen.`)) return;
+    setOrderList(prevList => prevList.filter(o => !(o.Tanggal === tanggal && o.Nama_Pemesan === pemesan && o.Nama_Vendor === vendor)));
+    try {
+      await fetch(`${STEIN_URL}/preOrder`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ condition: { Tanggal: tanggal, Nama_Pemesan: pemesan, Nama_Vendor: vendor } })
+      });
+    } catch (err) {
+      alert("Gagal menghapus pesanan.");
+      refreshData();
+    }
+  };
+
+  // LOGIKA FILTER BELUM DIAMBIL
+  const displayedOrders = filterBelumAmbil 
+    ? orderList.filter(o => o.Status_Ambil !== "SUDAH") 
+    : orderList;
 
   if (isChecking || !isAuthorized) return null;
 
@@ -283,8 +325,17 @@ export default function PreOrderPage() {
           </div>
         </div>
 
-        {/* MANAGEMENT PESANAN */}
+        {/* MANAGEMENT PESANAN (DENGAN FILTER & CANCEL ADMIN) */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+          <div className="p-4 border-b border-slate-700 bg-slate-900/50 flex justify-between items-center">
+            <h2 className="text-[10px] font-bold text-slate-400 tracking-widest uppercase italic">Management Pesanan</h2>
+            <div className="flex gap-2">
+              <button onClick={() => setFilterBelumAmbil(!filterBelumAmbil)} className={`px-2 py-1 rounded text-[8px] font-bold transition-colors ${filterBelumAmbil ? 'bg-[#0a95f6] text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>
+                {filterBelumAmbil ? "TAMPILKAN SEMUA" : "BELUM DIAMBIL"}
+              </button>
+              <button onClick={refreshData} className="text-[8px] bg-slate-700 px-2 py-1 rounded font-bold hover:bg-slate-600 text-slate-300">REFRESH</button>
+            </div>
+          </div>
           <table className="w-full text-left border-collapse text-[9px]">
             <thead>
               <tr className="bg-slate-900 text-slate-500 text-[8px]">
@@ -297,36 +348,46 @@ export default function PreOrderPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
-              {orderList.map((order, idx) => (
+              {displayedOrders.map((order, idx) => (
                 <tr key={idx} className="hover:bg-slate-700/30 transition-colors">
                   <td className="p-4 text-slate-500">{order.Tanggal}</td>
                   <td className="p-4"><span className="font-bold text-red-500">{order.Nama_Pemesan}</span><br/><span className="text-slate-400 italic">{order.Nama_Barang}</span></td>
                   <td className="p-4 text-center">
-                    <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, "Status_Bayar", order.Status_Bayar === "LUNAS" ? "BELUM" : "LUNAS")}
+                    <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, order.Nama_Vendor, "Status_Bayar", order.Status_Bayar === "LUNAS" ? "BELUM" : "LUNAS")}
                       className={`px-2 py-0.5 rounded text-[7px] font-black transition-colors ${order.Status_Bayar === "LUNAS" ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
                       {order.Status_Bayar || "BELUM"}
                     </button>
                   </td>
                   <td className="p-4 text-center">
-                    <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, "Status_Pesanan", order.Status_Pesanan === "READY" ? "PROSES" : "READY")}
+                    <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, order.Nama_Vendor, "Status_Pesanan", order.Status_Pesanan === "READY" ? "PROSES" : "READY")}
                       className={`px-2 py-0.5 rounded text-[7px] font-black transition-colors ${order.Status_Pesanan === "READY" ? 'bg-yellow-600 text-black' : 'bg-slate-700 text-slate-400'}`}>
                       {order.Status_Pesanan || "PROSES"}
                     </button>
                   </td>
                   <td className="p-4 text-center">
-                    <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, "Status_Ambil", order.Status_Ambil === "SUDAH" ? "BELUM" : "SUDAH")}
+                    <button disabled={!isAdmin} onClick={() => updateOrderStatus(order.Tanggal, order.Nama_Pemesan, order.Nama_Vendor, "Status_Ambil", order.Status_Ambil === "SUDAH" ? "BELUM" : "SUDAH")}
                       className={`px-2 py-0.5 rounded text-[7px] font-black transition-colors ${order.Status_Ambil === "SUDAH" ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
                       {order.Status_Ambil || "BELUM"}
                     </button>
                   </td>
-                  <td className="p-4 text-right font-black text-green-500">${parseInt(order.Subtotal).toLocaleString()}</td>
+                  <td className="p-4 text-right">
+                    <div className="font-black text-green-500">${parseInt(order.Subtotal).toLocaleString()}</div>
+                    {isAdmin && (
+                      <button onClick={() => cancelOrder(order.Tanggal, order.Nama_Pemesan, order.Nama_Vendor)} className="mt-2 bg-red-600/20 text-red-500 hover:bg-red-600 hover:text-white px-2 py-1 rounded text-[7px] font-black transition-colors block w-full text-center">CANCEL</button>
+                    )}
+                  </td>
                 </tr>
               ))}
+              {displayedOrders.length === 0 && (
+                <tr>
+                  <td colSpan="6" className="p-6 text-center text-slate-500 italic">Tidak ada pesanan untuk ditampilkan.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* TAMBAHAN BARU: RINGKASAN MEMBER (HANYA VENDOR AKTIF & TANPA TOMBOL) */}
+        {/* RINGKASAN MEMBER */}
         {!isAdmin && (
           <div className="pt-6 border-t border-slate-700/50 mt-8">
             <h2 className="text-[10px] font-bold text-slate-400 mb-6 uppercase tracking-widest text-center">Rekap PO Aktif (View Only)</h2>
