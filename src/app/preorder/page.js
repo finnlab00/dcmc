@@ -16,6 +16,9 @@ export default function PreOrderPage() {
   const [keranjang, setKeranjang] = useState([]);
   
   const [filterBelumAmbil, setFilterBelumAmbil] = useState(false);
+  // FITUR BARU: State untuk menyimpan filter vendor di Management Pesanan
+  const [filterVendor, setFilterVendor] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false); 
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -47,7 +50,6 @@ export default function PreOrderPage() {
           namaBarang: item.Nama_Barang || "",
           hargaBarang: Number(item.Harga_Barang) || 0,
           statusOpen: (String(item.Status_Open || "")).toUpperCase(),
-          // FITUR BARU: Mengambil data Kuota dari Sheet
           kuota: Number(item.Kuota) || 0 
         }));
         setAllVendorData(normalized);
@@ -62,13 +64,10 @@ export default function PreOrderPage() {
     } catch (err) { console.error(err); }
   };
 
-  // FITUR BARU: Fungsi untuk menghitung sisa kuota akurat
   const getSisaKuota = (vName, bName) => {
-    // 1. Ambil kuota awal
     const itemAwal = allVendorData.find(v => v.namaVendor === vName && v.namaBarang === bName);
     const kuotaMaksimal = itemAwal ? itemAwal.kuota : 0;
 
-    // 2. Hitung jumlah yang sudah masuk di database (PO)
     let totalDipesanDatabase = 0;
     orderList.filter(o => o.Nama_Vendor === vName).forEach(order => {
       if (!order.Nama_Barang) return;
@@ -81,7 +80,6 @@ export default function PreOrderPage() {
       });
     });
 
-    // 3. Hitung jumlah yang sedang di-hold di keranjang UI
     const totalDiKeranjang = keranjang
       .filter(k => k.namaVendor === vName && k.namaBarang === bName)
       .reduce((acc, curr) => acc + parseInt(curr.jumlah), 0);
@@ -251,7 +249,6 @@ export default function PreOrderPage() {
     const qtyNumber = parseInt(jumlah);
     if (qtyNumber <= 0) return;
 
-    // FITUR BARU: Validasi Sisa Kuota sebelum masuk keranjang
     const sisaKuota = getSisaKuota(selectedVendor, selectedBarang.namaBarang);
     if (qtyNumber > sisaKuota) {
       alert(`Gagal! Sisa kuota untuk ${selectedBarang.namaBarang} hanya tersisa ${sisaKuota}.`);
@@ -286,11 +283,13 @@ export default function PreOrderPage() {
     setJumlah("");
   };
 
-  const displayedOrders = filterBelumAmbil 
-    ? orderList.filter(o => o.Status_Ambil !== "SUDAH") 
-    : orderList;
+  // FITUR BARU: Logika filter diperbarui untuk mendukung filter per-vendor
+  const displayedOrders = orderList.filter(o => {
+    const isBelumAmbil = filterBelumAmbil ? o.Status_Ambil !== "SUDAH" : true;
+    const isVendorMatch = filterVendor ? o.Nama_Vendor === filterVendor : true;
+    return isBelumAmbil && isVendorMatch;
+  });
 
-  // Mendapatkan Sisa Kuota untuk barang yang sedang dipilih (untuk max di input)
   const sisaKuotaTerpilih = selectedBarang ? getSisaKuota(selectedVendor, selectedBarang.namaBarang) : 0;
 
   if (isChecking || !isAuthorized) return null;
@@ -326,7 +325,6 @@ export default function PreOrderPage() {
                     <button disabled={loading} onClick={() => toggleVendorStatus(vName, vInfo.statusOpen)} className="bg-white text-black px-2 py-0.5 rounded text-[8px] font-black disabled:opacity-50">TOGGLE</button>
                   </div>
                   <div className="space-y-1 min-h-[50px]">
-                    {/* Tampilkan info kuota juga di Admin panel */}
                     {allVendorData.filter(v => v.namaVendor === vName).map(item => {
                        const sisa = getSisaKuota(vName, item.namaBarang);
                        const dipesan = itemsRekap.find(r => r[0] === item.namaBarang)?.[1] || 0;
@@ -378,7 +376,6 @@ export default function PreOrderPage() {
               <select required className="w-full p-3 rounded bg-slate-900 border border-slate-700 font-bold" value={selectedBarang?.namaBarang || ""} 
                 onChange={(e) => setSelectedBarang(barangTersedia.find(b => b.namaBarang === e.target.value))}>
                 <option value="">-- ITEM --</option>
-                {/* FITUR BARU: Modifikasi List Dropdown agar menampilkan Sisa Kuota */}
                 {barangTersedia.map((b, i) => {
                   const sisa = getSisaKuota(selectedVendor, b.namaBarang);
                   const isHabis = sisa <= 0;
@@ -395,7 +392,7 @@ export default function PreOrderPage() {
                 required 
                 placeholder="QTY" 
                 value={jumlah} 
-                max={sisaKuotaTerpilih > 0 ? sisaKuotaTerpilih : 1} // Limit angka input HTML
+                max={sisaKuotaTerpilih > 0 ? sisaKuotaTerpilih : 1} 
                 className="w-full p-3 rounded bg-slate-900 border border-slate-700 outline-none disabled:opacity-50" 
                 onChange={(e) => setJumlah(e.target.value)} 
                 disabled={!selectedBarang || sisaKuotaTerpilih <= 0}
@@ -434,9 +431,22 @@ export default function PreOrderPage() {
 
         {/* MANAGEMENT PESANAN */}
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
-          <div className="p-4 border-b border-slate-700 bg-slate-900/50 flex justify-between items-center">
+          <div className="p-4 border-b border-slate-700 bg-slate-900/50 flex flex-col md:flex-row gap-4 md:gap-0 justify-between items-center">
             <h2 className="text-[10px] font-bold text-slate-400 tracking-widest uppercase italic">Management Pesanan</h2>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              
+              {/* FITUR BARU: Dropdown Filter Vendor */}
+              <select 
+                className="bg-slate-700 text-[8px] text-slate-300 px-2 py-1 rounded font-bold outline-none border border-slate-600 focus:border-indigo-500 cursor-pointer"
+                value={filterVendor}
+                onChange={(e) => setFilterVendor(e.target.value)}
+              >
+                <option value="">SEMUA VENDOR</option>
+                {[...new Set(orderList.map(o => o.Nama_Vendor))].filter(v => v).map((v, i) => (
+                  <option key={i} value={v}>{v}</option>
+                ))}
+              </select>
+
               <button onClick={() => setFilterBelumAmbil(!filterBelumAmbil)} className={`px-2 py-1 rounded text-[8px] font-bold transition-colors ${filterBelumAmbil ? 'bg-[#0a95f6] text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>
                 {filterBelumAmbil ? "TAMPILKAN SEMUA" : "BELUM DIAMBIL"}
               </button>
