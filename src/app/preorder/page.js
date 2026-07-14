@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 // Jika menggunakan Next.js, pastikan baris ini di-uncomment:
 import { useRouter } from "next/navigation"; 
-import { ShoppingCart, Package, ClipboardList, Shield, Check, X, Search, Bell, Archive, Copy, Lock } from "lucide-react";
+import { ShoppingCart, Package, ClipboardList, Shield, Check, X, Search, Bell, Archive, Copy, Lock, Calculator, ArrowRight } from "lucide-react";
 
 export default function PreOrderPage() {
   // State Data
@@ -19,12 +19,15 @@ export default function PreOrderPage() {
   const [jumlah, setJumlah] = useState("");
   const [keranjang, setKeranjang] = useState([]);
   
-  // State Filter & UI
+  // State Filter, UI & Tab
   const [filterBelumAmbil, setFilterBelumAmbil] = useState(false);
   const [filterVendor, setFilterVendor] = useState("");
-  const [searchNama, setSearchNama] = useState(""); // FITUR BARU: Search by name
-  const [activeTab, setActiveTab] = useState("order"); // Tab System: order, history, admin
+  const [searchNama, setSearchNama] = useState(""); 
+  const [activeTab, setActiveTab] = useState("order"); // Tab System: order, history, admin, kalkulator
   
+  // State Kalkulator Umer
+  const [inputUmer, setInputUmer] = useState("");
+
   // State Auth & Loading
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -38,7 +41,6 @@ export default function PreOrderPage() {
   const WEBSITE_URL = "https://dcmc-sable.vercel.app/";
 
   useEffect(() => {
-    // KEMBALIKAN LOGIKA AUTH ASLI
     const access = typeof window !== 'undefined' ? sessionStorage.getItem("access_granted") : null;
     
     if (access === "true") {
@@ -50,7 +52,7 @@ export default function PreOrderPage() {
       setIsChecking(false);
       router.replace("/"); // Aktifkan ini untuk melempar user di Next.js
     }
-  }, []);
+  }, [router]);
 
   const refreshData = async () => {
     try {
@@ -218,7 +220,7 @@ export default function PreOrderPage() {
         body: JSON.stringify(dataToPost)
       });
       setKeranjang([]);
-      setActiveTab("history"); // Pindah ke tab riwayat setelah checkout
+      setActiveTab("history"); 
       refreshData();
       alert("Checkout Berhasil!");
     } catch (err) { alert("Checkout Gagal."); }
@@ -226,7 +228,6 @@ export default function PreOrderPage() {
   };
 
   const updateOrderStatus = async (tanggal, pemesan, vendor, field, value) => {
-    // Optimistic UI Update
     setOrderList(prevList => 
       prevList.map(order => 
         (order.Tanggal === tanggal && order.Nama_Pemesan === pemesan && order.Nama_Vendor === vendor) 
@@ -314,20 +315,32 @@ export default function PreOrderPage() {
     }
   };
 
+  // LOGIKA KALKULATOR UMER
+  const hitungUmer = () => {
+    const awal = Number(inputUmer) || 0;
+    const pot10 = awal * 0.10;
+    const sisaSetelah10 = awal - pot10;
+    const pot15 = sisaSetelah10 * 0.15;
+    const hasilMurni = sisaSetelah10 - pot15;
+    const jumlahKartu = Math.ceil(awal / 50000);
+    const totalBiayaKartu = jumlahKartu * 200;
+    const hasilDenganKartu = Math.max(0, hasilMurni - totalBiayaKartu); // Cegah minus
+    return { awal, pot10, sisaSetelah10, pot15, hasilMurni, jumlahKartu, totalBiayaKartu, hasilDenganKartu };
+  };
+  const hasilUmer = hitungUmer();
+
   // FILTER LOGIC
   const displayedOrders = orderList.filter(o => {
     const isBelumAmbil = filterBelumAmbil ? o.Status_Ambil !== "SUDAH" : true;
     const isVendorMatch = filterVendor ? o.Nama_Vendor === filterVendor : true;
-    // PENCARIAN BERDASARKAN NAMA
     const isNamaMatch = searchNama ? (o.Nama_Pemesan || "").toLowerCase().includes(searchNama.toLowerCase()) : true;
-    return isBelumAmbil && isVendorMatch && isNamaMatch; // FIX: isNamaMatch (sebelumnya isNameMatch)
+    return isBelumAmbil && isVendorMatch && isNamaMatch;
   });
 
   const sisaKuotaTerpilih = selectedBarang ? getSisaKuota(selectedVendor, selectedBarang.namaBarang) : 0;
 
   if (isChecking) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">Memuat...</div>;
 
-  // LAYAR JIKA BELUM LOGIN / AKSES DITOLAK
   if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-200 p-6 text-center">
@@ -336,12 +349,11 @@ export default function PreOrderPage() {
         <p className="text-slate-400 mb-8 max-w-sm">Anda harus login atau memasukkan kode akses dari halaman utama untuk masuk ke halaman ini.</p>
         <div className="flex gap-4">
           <button 
-            onClick={() => window.location.href = "/"} // Fallback navigasi manual
+            onClick={() => window.location.href = "/"} 
             className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-xl font-bold transition-colors"
           >
             Kembali ke Login
           </button>
-          {/* Tombol ini hanya agar Anda bisa mengetes di sini. Hapus saat naik produksi */}
           <button 
             onClick={() => { setIsAuthorized(true); refreshData(); }}
             className="bg-red-600 hover:bg-red-500 text-white px-6 py-3 rounded-xl font-bold transition-colors"
@@ -359,7 +371,7 @@ export default function PreOrderPage() {
       {/* HEADER */}
       <header className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center shadow-sm">
         <h1 className="text-xl md:text-2xl font-black text-red-500 italic tracking-tight">
-          DCMC LOGISTICS
+          DCMC HUB
         </h1>
         <button 
           onClick={handleAdminAuth}
@@ -372,13 +384,14 @@ export default function PreOrderPage() {
         </button>
       </header>
 
-      {/* MOBILE TAB NAVIGATION (Hanya 3 Tab Sekarang) */}
+      {/* MOBILE TAB NAVIGATION (Sekarang 4 Tab) */}
       <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 z-40 md:static md:bg-transparent md:border-none md:max-w-5xl md:mx-auto md:mt-6 px-2 md:px-0">
         <div className="flex justify-around md:justify-start md:gap-2 p-2">
-          <TabButton active={activeTab === 'order'} onClick={() => setActiveTab('order')} icon={<Package />} label="Pesan & Keranjang" badge={keranjang.length} />
+          <TabButton active={activeTab === 'order'} onClick={() => setActiveTab('order')} icon={<Package />} label="Pesan" badge={keranjang.length} />
           <TabButton active={activeTab === 'history'} onClick={() => setActiveTab('history')} icon={<ClipboardList />} label="Riwayat" />
+          <TabButton active={activeTab === 'kalkulator'} onClick={() => setActiveTab('kalkulator')} icon={<Calculator />} label="Kalkulator" />
           {isAdmin && (
-            <TabButton active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} icon={<Shield />} label="Admin Panel" />
+            <TabButton active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} icon={<Shield />} label="Admin" />
           )}
         </div>
       </nav>
@@ -386,10 +399,9 @@ export default function PreOrderPage() {
       {/* MAIN CONTENT AREA */}
       <main className="max-w-6xl mx-auto p-4 mt-2">
         
-        {/* --- TAB 1: FORM ORDER + CART DALAM 1 HALAMAN --- */}
+        {/* --- TAB 1: FORM ORDER + CART --- */}
         {activeTab === 'order' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300 items-start">
-            
             {/* BAGIAN KIRI: FORM ORDER */}
             <div className="lg:col-span-7 bg-slate-900 border border-slate-800 p-5 md:p-8 rounded-2xl shadow-xl">
               <div className="mb-6 border-b border-slate-800 pb-4">
@@ -492,7 +504,7 @@ export default function PreOrderPage() {
                 </div>
               ) : (
                 <div className="flex flex-col flex-grow">
-                  {/* Daftar Item (Scrollable jika banyak) */}
+                  {/* Daftar Item */}
                   <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 mb-6 scrollbar-thin">
                     {keranjang.map((item) => (
                       <div key={item.idTemp} className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl flex justify-between items-center shadow-sm">
@@ -504,7 +516,6 @@ export default function PreOrderPage() {
                         <button 
                           onClick={() => setKeranjang(keranjang.filter(i => i.idTemp !== item.idTemp))} 
                           className="bg-red-500/10 text-red-500 p-2 rounded-lg hover:bg-red-500 hover:text-white transition-colors"
-                          aria-label="Hapus item"
                         >
                           <X size={16} />
                         </button>
@@ -528,7 +539,6 @@ export default function PreOrderPage() {
                 </div>
               )}
             </div>
-
           </div>
         )}
 
@@ -542,7 +552,7 @@ export default function PreOrderPage() {
                 
                 <div className="flex flex-wrap lg:flex-nowrap gap-2 w-full lg:w-auto">
                   
-                  {/* BARU: SEARCH BAR */}
+                  {/* SEARCH BAR */}
                   <div className="relative flex-grow lg:w-48">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
                     <input 
@@ -605,7 +615,86 @@ export default function PreOrderPage() {
           </div>
         )}
 
-        {/* --- TAB 3: ADMIN PANEL --- */}
+        {/* --- TAB 3: KALKULATOR UMER --- */}
+        {activeTab === 'kalkulator' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-2xl mx-auto">
+            <div className="bg-slate-900 border border-slate-800 p-6 md:p-8 rounded-2xl shadow-xl">
+              
+              <div className="mb-6 border-b border-slate-800 pb-4 text-center">
+                <Calculator className="text-red-500 mx-auto mb-2" size={32} />
+                <h2 className="text-xl font-bold text-white tracking-tight">Kalkulator Cuci Uang Merah</h2>
+                <p className="text-sm text-slate-400 mt-1">Hitung estimasi uang putih yang didapat dari Umer.</p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Jumlah Umer (Uang Kotor)</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">$</span>
+                    <input 
+                      type="number" 
+                      placeholder="Contoh: 100000" 
+                      className="w-full pl-9 pr-4 py-4 rounded-xl bg-slate-950 border border-slate-700 text-xl font-black text-red-400 outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all" 
+                      value={inputUmer} 
+                      onChange={(e) => setInputUmer(e.target.value)} 
+                    />
+                  </div>
+                </div>
+
+                {hasilUmer.awal > 0 && (
+                  <div className="bg-slate-950 rounded-xl p-5 border border-slate-800 space-y-5 animate-in fade-in slide-in-from-bottom-2">
+                    
+                    {/* RINCIAN POTONGAN */}
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                        <span className="text-slate-400">Total Umer</span>
+                        <span className="font-bold text-white">${hasilUmer.awal.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-2 px-3">
+                        <span className="text-slate-500">Potongan 1 (10%)</span>
+                        <span className="text-red-400 font-medium">- ${hasilUmer.pot10.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-2 px-3">
+                        <span className="text-slate-500">Potongan 2 (15% dari sisa)</span>
+                        <span className="text-red-400 font-medium">- ${hasilUmer.pot15.toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-slate-800 w-full my-4"></div>
+
+                    {/* SCENARIO HASIL */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      {/* TANPA KARTU */}
+                      <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 bg-green-500/20 px-3 py-1 rounded-bl-lg text-[10px] font-bold text-green-400">TANPA KARTU</div>
+                        <p className="text-xs font-semibold text-slate-400 mb-2 mt-2">Estimasi Uang Putih</p>
+                        <span className="text-3xl font-black text-green-400 flex items-center gap-2">
+                          ${hasilUmer.hasilMurni.toLocaleString()}
+                        </span>
+                      </div>
+
+                      {/* DENGAN KARTU */}
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 bg-yellow-500/20 px-3 py-1 rounded-bl-lg text-[10px] font-bold text-yellow-500">DENGAN KARTU</div>
+                        <div className="flex justify-between items-center mb-1 mt-2 text-xs">
+                          <span className="text-slate-400">Biaya ({hasilUmer.jumlahKartu}x Kartu)</span>
+                          <span className="text-red-400 font-medium">- ${hasilUmer.totalBiayaKartu.toLocaleString()}</span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-400 mb-1 mt-2">Estimasi Uang Putih</p>
+                        <span className="text-3xl font-black text-yellow-400 flex items-center gap-2">
+                          ${hasilUmer.hasilDenganKartu.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- TAB 4: ADMIN PANEL --- */}
         {activeTab === 'admin' && isAdmin && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
              <div className="mb-6 flex items-center gap-2">
