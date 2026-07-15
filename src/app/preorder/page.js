@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 // Jika menggunakan Next.js, pastikan baris ini di-uncomment:
 import { useRouter } from "next/navigation"; 
-import { ShoppingCart, Package, ClipboardList, Shield, Check, X, Search, Bell, Archive, Copy, Lock, Calculator, ArrowRight } from "lucide-react";
+import { ShoppingCart, Package, ClipboardList, Shield, Check, X, Search, Bell, Archive, Copy, Lock, Calculator, Wallet, CreditCard, TrendingUp, DollarSign } from "lucide-react";
 
 export default function PreOrderPage() {
   // State Data
@@ -27,6 +27,9 @@ export default function PreOrderPage() {
   
   // State Kalkulator Umer
   const [inputUmer, setInputUmer] = useState("");
+
+  // FITUR BARU: State Filter Dashboard Keuangan Admin
+  const [financeVendor, setFinanceVendor] = useState("");
 
   // State Auth & Loading
   const [loading, setLoading] = useState(false);
@@ -63,6 +66,8 @@ export default function PreOrderPage() {
           namaVendor: item.Nama_Vendor || "",
           namaBarang: item.Nama_Barang || "",
           hargaBarang: Number(item.Harga_Barang) || 0,
+          // FITUR BARU: Menangkap Harga_Modal dari Google Sheet
+          hargaModal: Number(item.Harga_Modal) || 0,
           statusOpen: (String(item.Status_Open || "")).toUpperCase(),
           kuota: Number(item.Kuota) || 0
         }));
@@ -329,7 +334,48 @@ export default function PreOrderPage() {
   };
   const hasilUmer = hitungUmer();
 
-  // FILTER LOGIC
+  // FITUR BARU: LOGIKA KALKULATOR DASHBOARD KEUANGAN ADMIN
+  const hitungDashboardKeuangan = () => {
+    let totalOmset = 0;
+    let totalModal = 0;
+
+    // Filter order berdasarkan dropdown (financeVendor)
+    const filteredOrders = financeVendor 
+      ? orderList.filter(o => o.Nama_Vendor === financeVendor)
+      : orderList;
+
+    filteredOrders.forEach(order => {
+      // Omset (Tagihan Member)
+      totalOmset += Number(order.Subtotal) || 0;
+
+      // Modal (Tagihan Vendor) - Dipecah per item karena 1 order bisa banyak barang
+      if (order.Nama_Barang && order.Nama_Vendor) {
+        const items = order.Nama_Barang.split(", ");
+        items.forEach(itemStr => {
+          const match = itemStr.match(/(.+) \((\d+)\)/);
+          if (match) {
+            const bName = match[1];
+            const bQty = parseInt(match[2]);
+
+            // Cari Harga Modal dari data allVendorData
+            const vendorItem = allVendorData.find(v => v.namaVendor === order.Nama_Vendor && v.namaBarang === bName);
+            const modalPrice = vendorItem ? vendorItem.hargaModal : 0;
+            
+            totalModal += (modalPrice * bQty);
+          }
+        });
+      }
+    });
+
+    return {
+      omset: totalOmset,
+      modal: totalModal,
+      profit: totalOmset - totalModal
+    };
+  };
+  const financeStats = hitungDashboardKeuangan();
+
+  // FILTER LOGIC MANAGEMENT PESANAN
   const displayedOrders = orderList.filter(o => {
     const isBelumAmbil = filterBelumAmbil ? o.Status_Ambil !== "SUDAH" : true;
     const isVendorMatch = filterVendor ? o.Nama_Vendor === filterVendor : true;
@@ -697,6 +743,48 @@ export default function PreOrderPage() {
         {/* --- TAB 4: ADMIN PANEL --- */}
         {activeTab === 'admin' && isAdmin && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+             
+             {/* FITUR BARU: DASHBOARD KEUANGAN */}
+             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-8 shadow-xl">
+               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-800 pb-4">
+                 <div>
+                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                     <TrendingUp className="text-green-500" size={20} /> Dashboard Keuangan
+                   </h3>
+                   <p className="text-xs text-slate-400 mt-1">Ringkasan total tagihan dan estimasi profit.</p>
+                 </div>
+                 <select 
+                   className="bg-slate-950 text-sm text-slate-200 px-4 py-2 rounded-xl border border-slate-700 outline-none focus:border-red-500 appearance-none min-w-[150px] cursor-pointer"
+                   value={financeVendor}
+                   onChange={(e) => setFinanceVendor(e.target.value)}
+                 >
+                   <option value="">Semua Vendor (Global)</option>
+                   {[...new Set(allVendorData.map(v => v.namaVendor))].filter(n => n !== "").map((v, i) => (
+                     <option key={i} value={v}>{v}</option>
+                   ))}
+                 </select>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 {/* Omset */}
+                 <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex flex-col justify-center">
+                   <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5"><Wallet size={14} className="text-blue-400"/> Tagihan Member (Omset)</p>
+                   <p className="text-2xl font-black text-white">${financeStats.omset.toLocaleString()}</p>
+                 </div>
+                 {/* Modal */}
+                 <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex flex-col justify-center">
+                   <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5"><CreditCard size={14} className="text-red-400"/> Bayar ke Vendor (Modal)</p>
+                   <p className="text-2xl font-black text-red-400">${financeStats.modal.toLocaleString()}</p>
+                 </div>
+                 {/* Profit */}
+                 <div className="bg-green-500/10 border border-green-500/20 p-4 rounded-xl relative overflow-hidden flex flex-col justify-center">
+                   <p className="text-xs font-semibold text-green-500 mb-2 flex items-center gap-1.5"><DollarSign size={14}/> Profit Bersih Kantor</p>
+                   <p className="text-2xl font-black text-green-400 relative z-10">${financeStats.profit.toLocaleString()}</p>
+                   <div className="absolute -right-4 -bottom-4 text-green-500/10 z-0"><TrendingUp size={80}/></div>
+                 </div>
+               </div>
+             </div>
+
              <div className="mb-6 flex items-center gap-2">
                 <Shield className="text-red-500" size={24} />
                 <h2 className="text-xl font-bold">Control Panel Admin</h2>
