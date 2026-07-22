@@ -43,7 +43,11 @@ export default function PreOrderPage() {
   
   const router = useRouter(); // Uncomment for Next.js
 
-  const STEIN_URL = "https://api.steinhq.com/v1/storages/69f83da192b1163e97c0e17a";
+  // ==========================================
+  // MASUKKAN LINK GOOGLE APPS SCRIPT DI SINI!
+  // ==========================================
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbw-HfseHVrbFqUKdvM-1oxfQ1N3gCB-a-5M2Nvs-aQL7nVMe4bKDkGJ3yJILGLR7gGE/exec"; 
+  
   const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1522683134620205160/lxJSiUlPFQ_9J24uZ6BwrrBJN4Ht3Y3H97ZXYAkWHJZVSF0TfjM6XzOhoWhS5WOa_8Ak";
   const WEBSITE_URL = "https://dcmc-sable.vercel.app/";
 
@@ -61,12 +65,12 @@ export default function PreOrderPage() {
     }
   }, [router]);
 
-  // Auto-refresh setiap 30 detik (Silent Mode)
+  // AUTO-REFRESH AKTIF KEMBALI (Google Apps Script Anti-Limit)
   useEffect(() => {
     let interval;
     if (isAuthorized) {
       interval = setInterval(() => {
-        refreshData(true); // true = silent refresh
+        refreshData(true); 
       }, 30000);
     }
     return () => clearInterval(interval);
@@ -74,7 +78,7 @@ export default function PreOrderPage() {
 
   const refreshData = async (isSilent = false) => {
     try {
-      const resV = await fetch(`${STEIN_URL}/vendor`);
+      const resV = await fetch(`${GAS_URL}?action=read&sheet=vendor`);
       const rawV = await resV.json();
       if (Array.isArray(rawV)) {
         const normalized = rawV.map(item => ({
@@ -90,7 +94,7 @@ export default function PreOrderPage() {
         setDaftarVendorUnik([...new Set(openVendors.map(v => v.namaVendor))]);
       }
       
-      const resO = await fetch(`${STEIN_URL}/preOrder`);
+      const resO = await fetch(`${GAS_URL}?action=read&sheet=preOrder`);
       const rawO = await resO.json();
       if (Array.isArray(rawO)) {
         setOrderList(rawO.filter(o => o.Archived !== "YES").reverse());
@@ -105,7 +109,6 @@ export default function PreOrderPage() {
   const getSisaKuota = (vName, bName) => {
     const itemAwal = allVendorData.find(v => v.namaVendor === vName && v.namaBarang === bName);
     const kuotaMaksimal = itemAwal ? itemAwal.kuota : 0;
-
     let totalDipesanDatabase = 0;
     orderList.filter(o => o.Nama_Vendor === vName).forEach(order => {
       if (!order.Nama_Barang) return;
@@ -117,11 +120,9 @@ export default function PreOrderPage() {
         }
       });
     });
-
     const totalDiKeranjang = keranjang
       .filter(k => k.namaVendor === vName && k.namaBarang === bName)
       .reduce((acc, curr) => acc + parseInt(curr.jumlah), 0);
-
     return kuotaMaksimal - totalDipesanDatabase - totalDiKeranjang;
   };
 
@@ -138,15 +139,14 @@ export default function PreOrderPage() {
     return Object.entries(summary);
   };
 
-  // ACTIONS (WITH TOAST & CUSTOM MODAL)
+  // ACTIONS (WITH GOOGLE APPS SCRIPT POST METHOD)
   const toggleVendorStatus = async (vName, currentStatus) => {
     setLoading(true);
     const nextStatus = currentStatus === "YES" ? "NO" : "YES";
     try {
-      await fetch(`${STEIN_URL}/vendor`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ condition: { Nama_Vendor: vName }, set: { Status_Open: nextStatus } })
+      await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: "update", sheet: "vendor", condition: { Nama_Vendor: vName }, set: { Status_Open: nextStatus } })
       });
       toast.success(`Status ${vName} diubah menjadi ${nextStatus === "YES" ? "OPEN" : "CLOSED"}`);
       refreshData(true);
@@ -163,10 +163,9 @@ export default function PreOrderPage() {
         const loadingToast = toast.loading(`Mengubah status ${vName}...`);
         setLoading(true);
         try {
-          await fetch(`${STEIN_URL}/preOrder`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ condition: { Nama_Vendor: vName, Status_Pesanan: "PROSES" }, set: { Status_Pesanan: "READY" } })
+          await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: "update", sheet: "preOrder", condition: { Nama_Vendor: vName, Status_Pesanan: "PROSES" }, set: { Status_Pesanan: "READY" } })
           });
           toast.success("Semua barang telah tiba!", { id: loadingToast });
           refreshData(true);
@@ -185,10 +184,9 @@ export default function PreOrderPage() {
         const loadingToast = toast.loading(`Mengarsipkan ${vName}...`);
         setLoading(true);
         try {
-          await fetch(`${STEIN_URL}/preOrder`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ condition: { Nama_Vendor: vName }, set: { Archived: "YES" } })
+          await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: "update", sheet: "preOrder", condition: { Nama_Vendor: vName }, set: { Archived: "YES" } })
           });
           toast.success("PO berhasil diarsipkan.", { id: loadingToast });
           refreshData(true);
@@ -252,10 +250,9 @@ export default function PreOrderPage() {
         };
       });
 
-      await fetch(`${STEIN_URL}/preOrder`, {
+      await fetch(GAS_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dataToPost)
+        body: JSON.stringify({ action: "insert", sheet: "preOrder", data: dataToPost })
       });
       setKeranjang([]);
       setActiveTab("history"); 
@@ -274,10 +271,9 @@ export default function PreOrderPage() {
       )
     );
     try {
-      await fetch(`${STEIN_URL}/preOrder`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ condition: { Tanggal: tanggal, Nama_Pemesan: pemesan, Nama_Vendor: vendor }, set: { [field]: value } })
+      await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: "update", sheet: "preOrder", condition: { Tanggal: tanggal, Nama_Pemesan: pemesan, Nama_Vendor: vendor }, set: { [field]: value } })
       });
       toast.success("Status berhasil diperbarui.");
     } catch (err) { 
@@ -294,10 +290,9 @@ export default function PreOrderPage() {
       onConfirm: async () => {
         setOrderList(prevList => prevList.filter(o => !(o.Tanggal === tanggal && o.Nama_Pemesan === pemesan && o.Nama_Vendor === vendor)));
         try {
-          await fetch(`${STEIN_URL}/preOrder`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ condition: { Tanggal: tanggal, Nama_Pemesan: pemesan, Nama_Vendor: vendor } })
+          await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: "delete", sheet: "preOrder", condition: { Tanggal: tanggal, Nama_Pemesan: pemesan, Nama_Vendor: vendor } })
           });
           toast.success("Pesanan berhasil dihapus.");
         } catch (err) {
@@ -365,7 +360,6 @@ export default function PreOrderPage() {
     }
   };
 
-  // EXPORT CSV FEATURE
   const exportToCSV = () => {
     const headers = "Tanggal,Nama Pemesan,Vendor,Barang,Total Qty,Subtotal,Status Bayar,Status Pesanan,Status Ambil\n";
     const rows = orderList.map(o => `"${o.Tanggal}","${o.Nama_Pemesan}","${o.Nama_Vendor}","${o.Nama_Barang}",${o.Jumlah},${o.Subtotal},${o.Status_Bayar},${o.Status_Pesanan},${o.Status_Ambil}`).join("\n");
@@ -419,7 +413,6 @@ export default function PreOrderPage() {
   };
   const financeStats = hitungDashboardKeuangan();
 
-  // FILTER & PAGINATION LOGIC
   const filteredOrders = orderList.filter(o => {
     const isBelumAmbil = filterBelumAmbil ? o.Status_Ambil !== "SUDAH" : true;
     const isVendorMatch = filterVendor ? o.Nama_Vendor === filterVendor : true;
@@ -432,7 +425,6 @@ export default function PreOrderPage() {
 
   const sisaKuotaTerpilih = selectedBarang ? getSisaKuota(selectedVendor, selectedBarang.namaBarang) : 0;
 
-  // LOADING SCREEN MODERN
   if (isChecking) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
