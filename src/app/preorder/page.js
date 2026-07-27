@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 // Jika menggunakan Next.js, pastikan baris ini di-uncomment:
 import { useRouter } from "next/navigation"; 
-import { ShoppingCart, Package, ClipboardList, Shield, Check, X, Search, Bell, Archive, Copy, Lock, Calculator, Wallet, CreditCard, TrendingUp, DollarSign, Download, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ShoppingCart, Package, ClipboardList, Shield, Check, X, Search, Bell, Archive, Copy, Lock, Calculator, Wallet, CreditCard, TrendingUp, DollarSign, Download, ChevronLeft, ChevronRight, Loader2, User } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 export default function PreOrderPage() {
@@ -41,22 +41,26 @@ export default function PreOrderPage() {
   const [isChecking, setIsChecking] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: "", message: "", onConfirm: null });
   
-  const router = useRouter(); // Uncomment for Next.js
+  const router = useRouter(); 
 
   // ==========================================
-  // MASUKKAN LINK GOOGLE APPS SCRIPT DI SINI!
+  // URL API & WEBHOOK
   // ==========================================
   const GAS_URL = "https://script.google.com/macros/s/AKfycbw-HfseHVrbFqUKdvM-1oxfQ1N3gCB-a-5M2Nvs-aQL7nVMe4bKDkGJ3yJILGLR7gGE/exec"; 
-  
   const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1522683134620205160/lxJSiUlPFQ_9J24uZ6BwrrBJN4Ht3Y3H97ZXYAkWHJZVSF0TfjM6XzOhoWhS5WOa_8Ak";
   const WEBSITE_URL = "https://dcmc-sable.vercel.app/";
 
-  // INIT & AUTO REFRESH LOGIC
+  // INIT & AUTH LOGIC (OPSI 1: 1 PINTU)
   useEffect(() => {
     const access = typeof window !== 'undefined' ? sessionStorage.getItem("access_granted") : null;
+    const adminStatus = typeof window !== 'undefined' ? sessionStorage.getItem("is_admin") : null;
     
     if (access === "true") {
       setIsAuthorized(true);
+      // Membaca status admin dari halaman login
+      if (adminStatus === "true") {
+        setIsAdmin(true);
+      }
       refreshData();
     } else {
       setIsAuthorized(false);
@@ -65,7 +69,7 @@ export default function PreOrderPage() {
     }
   }, [router]);
 
-  // AUTO-REFRESH AKTIF KEMBALI (Google Apps Script Anti-Limit)
+  // AUTO-REFRESH
   useEffect(() => {
     let interval;
     if (isAuthorized) {
@@ -84,8 +88,8 @@ export default function PreOrderPage() {
         const normalized = rawV.map(item => ({
           namaVendor: item.Nama_Vendor || "",
           namaBarang: item.Nama_Barang || "",
-          hargaBarang: Number(item.Harga_Barang) || 0,
-          hargaModal: Number(item.Harga_Modal) || 0,
+          hargaBarang: Number(item.Harga_Barang || item["# Harga_Barang"]) || 0,
+          hargaModal: Number(item.Harga_Modal || item["# Harga_Modal"]) || 0,
           statusOpen: (String(item.Status_Open || "")).toUpperCase(),
           kuota: Number(item.Kuota) || 0
         }));
@@ -139,7 +143,6 @@ export default function PreOrderPage() {
     return Object.entries(summary);
   };
 
-  // ACTIONS (WITH GOOGLE APPS SCRIPT POST METHOD)
   const toggleVendorStatus = async (vName, currentStatus) => {
     setLoading(true);
     const nextStatus = currentStatus === "YES" ? "NO" : "YES";
@@ -154,22 +157,40 @@ export default function PreOrderPage() {
     setLoading(false);
   };
 
+  // PENINGKATAN: All Arrived sekarang tembak Discord
   const requestMarkAllArrived = (vName) => {
     setConfirmDialog({
       isOpen: true,
       title: "Tandai Barang Tiba",
-      message: `Yakin ingin menandai semua pesanan ${vName} menjadi READY?`,
+      message: `Tandai pesanan ${vName} menjadi READY sekaligus umumkan di Discord?`,
       onConfirm: async () => {
-        const loadingToast = toast.loading(`Mengubah status ${vName}...`);
+        const loadingToast = toast.loading(`Memperbarui & Announce ${vName}...`);
         setLoading(true);
         try {
+          // 1. Update Database
           await fetch(GAS_URL, {
             method: 'POST',
             body: JSON.stringify({ action: "update", sheet: "preOrder", condition: { Nama_Vendor: vName, Status_Pesanan: "PROSES" }, set: { Status_Pesanan: "READY" } })
           });
-          toast.success("Semua barang telah tiba!", { id: loadingToast });
+          
           refreshData(true);
-        } catch (err) { toast.error("Gagal memperbarui status.", { id: loadingToast }); }
+
+          // 2. Announce ke Discord
+          const message = {
+            content: ` @everyone 📦 **BARANG TIBA!**`,
+            embeds: [{
+              title: `📦 PESANAN ${vName} SUDAH READY!`,
+              description: `Semua pre-order untuk vendor **${vName}** telah tiba dan siap diambil.\n\nSilakan cek riwayat pesanan Anda di website.`,
+              color: 3066993,
+              timestamp: new Date()
+            }]
+          };
+          await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(message) });
+          
+          toast.success("Barang tiba & Discord terkirim!", { id: loadingToast });
+        } catch (err) { 
+          toast.error("Gagal memproses data.", { id: loadingToast }); 
+        }
         setLoading(false);
       }
     });
@@ -196,10 +217,20 @@ export default function PreOrderPage() {
     });
   };
 
+  // PENINGKATAN: Fix limit karakter Discord (Potong daftar panjang)
   const sendDiscordAnnouncement = async (type, vendorName) => {
     const isOpening = type === "OPEN";
     const vendorItems = allVendorData.filter(v => v.namaVendor === vendorName);
-    const itemRows = vendorItems.map(item => `🔹 **${item.namaBarang}** — \`$${Number(item.hargaBarang).toLocaleString()}\` *(Sisa: ${getSisaKuota(vendorName, item.namaBarang)})*`).join("\n");
+    
+    const MAX_ITEMS = 12; // Batas aman agar tidak kena error 1024 char
+    let itemsToShow = vendorItems.slice(0, MAX_ITEMS);
+    
+    let itemRows = itemsToShow.map(item => `🔹 **${item.namaBarang}** — \`$${Number(item.hargaBarang).toLocaleString()}\` *(Sisa: ${getSisaKuota(vendorName, item.namaBarang)})*`).join("\n");
+    
+    if (vendorItems.length > MAX_ITEMS) {
+      const remaining = vendorItems.length - MAX_ITEMS;
+      itemRows += `\n\n*...dan ${remaining} item lainnya. Cek selengkapnya di website!*`;
+    }
     
     const message = {
       content: isOpening ? ` @everyone 📢 **PRE-ORDER ALERT!**` : `📢 **PO CLOSED**`,
@@ -236,12 +267,18 @@ export default function PreOrderPage() {
         const totalBayar = items.reduce((acc, curr) => acc + curr.subtotal, 0);
         const totalQty = items.reduce((acc, curr) => acc + parseInt(curr.jumlah), 0);
         
+        const totalModalCheckout = items.reduce((acc, curr) => {
+          const vendorItem = allVendorData.find(v => v.namaVendor === curr.namaVendor && v.namaBarang === curr.namaBarang);
+          return acc + ((vendorItem ? vendorItem.hargaModal : 0) * parseInt(curr.jumlah));
+        }, 0);
+        
         return {
           Nama_Pemesan: namaPemesan,
           Nama_Vendor: vendor,
           Nama_Barang: listBarangString,
           Jumlah: totalQty,
           Subtotal: totalBayar,
+          Modal_Vendor: totalModalCheckout,
           Tanggal: new Date().toLocaleString("id-ID"),
           Status_Bayar: "BELUM",
           Status_Pesanan: "PROSES",
@@ -345,24 +382,28 @@ export default function PreOrderPage() {
     setJumlah("");
   };
 
-  const handleAdminAuth = () => {
-    if (isAdmin) {
-      setIsAdmin(false);
-      setActiveTab("order");
-      toast.success("Mode Member Diaktifkan");
-    } else {
-      const p = prompt("Masukkan Password Admin:");
-      if(p === "ADMIN123") {
-        setIsAdmin(true);
-        toast.success("Mode Admin Diaktifkan");
-      }
-      else if(p !== null) toast.error("Password Salah!");
-    }
-  };
-
   const exportToCSV = () => {
-    const headers = "Tanggal,Nama Pemesan,Vendor,Barang,Total Qty,Subtotal,Status Bayar,Status Pesanan,Status Ambil\n";
-    const rows = orderList.map(o => `"${o.Tanggal}","${o.Nama_Pemesan}","${o.Nama_Vendor}","${o.Nama_Barang}",${o.Jumlah},${o.Subtotal},${o.Status_Bayar},${o.Status_Pesanan},${o.Status_Ambil}`).join("\n");
+    const headers = "Tanggal,Nama Pemesan,Vendor,Barang,Total Qty,Subtotal (Omset),Total Modal,Status Bayar,Status Pesanan,Status Ambil\n";
+    const rows = orderList.map(o => {
+      let modalData = Number(o.Modal_Vendor);
+      if (isNaN(modalData) || o.Modal_Vendor === undefined || o.Modal_Vendor === "") {
+         modalData = 0;
+         if (o.Nama_Barang) {
+            const items = o.Nama_Barang.split(", ");
+            items.forEach(itemStr => {
+              const match = itemStr.match(/(.+) \((\d+)\)/);
+              if (match) {
+                const bName = match[1];
+                const bQty = parseInt(match[2]);
+                const vendorItem = allVendorData.find(v => v.namaVendor === o.Nama_Vendor && v.namaBarang === bName);
+                modalData += (vendorItem ? vendorItem.hargaModal * bQty : 0);
+              }
+            });
+         }
+      }
+      return `"${o.Tanggal}","${o.Nama_Pemesan}","${o.Nama_Vendor}","${o.Nama_Barang}",${o.Jumlah},${o.Subtotal},${modalData},${o.Status_Bayar},${o.Status_Pesanan},${o.Status_Ambil}`;
+    }).join("\n");
+    
     const blob = new Blob([headers + rows], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -394,18 +435,23 @@ export default function PreOrderPage() {
 
     filteredOrders.forEach(order => {
       totalOmset += Number(order.Subtotal) || 0;
-      if (order.Nama_Barang && order.Nama_Vendor) {
-        const items = order.Nama_Barang.split(", ");
-        items.forEach(itemStr => {
-          const match = itemStr.match(/(.+) \((\d+)\)/);
-          if (match) {
-            const bName = match[1];
-            const bQty = parseInt(match[2]);
-            const vendorItem = allVendorData.find(v => v.namaVendor === order.Nama_Vendor && v.namaBarang === bName);
-            const modalPrice = vendorItem ? vendorItem.hargaModal : 0;
-            totalModal += (modalPrice * bQty);
-          }
-        });
+      
+      if (order.Modal_Vendor !== undefined && order.Modal_Vendor !== "") {
+        totalModal += Number(order.Modal_Vendor) || 0;
+      } else {
+        if (order.Nama_Barang && order.Nama_Vendor) {
+          const items = order.Nama_Barang.split(", ");
+          items.forEach(itemStr => {
+            const match = itemStr.match(/(.+) \((\d+)\)/);
+            if (match) {
+              const bName = match[1];
+              const bQty = parseInt(match[2]);
+              const vendorItem = allVendorData.find(v => v.namaVendor === order.Nama_Vendor && v.namaBarang === bName);
+              const modalPrice = vendorItem ? vendorItem.hargaModal : 0;
+              totalModal += (modalPrice * bQty);
+            }
+          });
+        }
       }
     });
 
@@ -434,12 +480,13 @@ export default function PreOrderPage() {
     );
   }
 
+  // TAMPILAN JIKA BELUM LOGIN
   if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-200 p-6 text-center">
         <Lock size={64} className="text-red-500 mb-6 opacity-80" />
         <h2 className="text-2xl font-black italic text-white mb-2">AKSES DITOLAK</h2>
-        <p className="text-slate-400 mb-8 max-w-sm">Anda harus login atau memasukkan kode akses dari halaman utama untuk masuk ke halaman ini.</p>
+        <p className="text-slate-400 mb-8 max-w-sm">Anda harus login dari halaman utama untuk masuk ke halaman ini.</p>
         <button 
           onClick={() => window.location.href = "/"} 
           className="bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-xl font-bold transition-colors"
@@ -468,20 +515,15 @@ export default function PreOrderPage() {
         </div>
       )}
 
-      {/* HEADER */}
+      {/* HEADER (Tombol Ganti Mode Dihapus, diganti Label Status) */}
       <header className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center shadow-sm">
         <h1 className="text-xl md:text-2xl font-black text-red-500 italic tracking-tight">
           DCMC HUB
         </h1>
-        <button 
-          onClick={handleAdminAuth}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-            isAdmin ? 'bg-red-600/20 text-red-500 border border-red-500/50' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-          }`}
-        >
-          <Shield size={14} />
-          <span className="hidden sm:inline">{isAdmin ? "Admin Mode" : "Member Mode"}</span>
-        </button>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${isAdmin ? 'bg-red-600/20 text-red-500 border border-red-500/50' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+          {isAdmin ? <Shield size={14} /> : <User size={14} />}
+          <span className="hidden sm:inline">{isAdmin ? "Admin Active" : "Member Active"}</span>
+        </div>
       </header>
 
       {/* MOBILE TAB NAVIGATION */}

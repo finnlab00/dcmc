@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function LoginPage() {
   const [inputCode, setInputCode] = useState("");
@@ -17,26 +18,45 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    const SECRET_CODE = "DCMC2026";
+    // ==========================================
+    // PENGATURAN KODE AKSES (PASSWORD)
+    // ==========================================
+    const MEMBER_CODE = "DCMC2026";
+    const ADMIN_CODE = "ADMIN123"; // Silakan ganti kode rahasia admin di sini
 
-    if (inputCode === SECRET_CODE) {
+    if (inputCode === MEMBER_CODE) {
       sessionStorage.setItem("access_granted", "true");
+      sessionStorage.setItem("is_admin", "false"); // Jalur Member
       
-      // Jeda singkat agar storage tersimpan sempurna
+      toast.success("Akses Member Diterima!");
       setTimeout(() => {
         router.push("/preorder");
-      }, 500);
+      }, 1000);
+      
+    } else if (inputCode === ADMIN_CODE) {
+      sessionStorage.setItem("access_granted", "true");
+      sessionStorage.setItem("is_admin", "true"); // Jalur VIP Admin
+      
+      toast.success("Akses ADMIN Diterima!");
+      setTimeout(() => {
+        router.push("/preorder");
+      }, 1000);
+      
     } else {
-      alert("KODE AKSES SALAH!");
+      toast.error("KODE AKSES SALAH!");
+      setInputCode(""); // Mengosongkan input otomatis jika salah
       setIsLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4 font-sans uppercase">
+      {/* Komponen Notifikasi Modern */}
+      <Toaster position="top-center" toastOptions={{ style: { background: '#1e293b', color: '#fff', borderRadius: '12px', border: '1px solid #334155' } }} />
+      
       <div className="max-w-md w-full bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl text-center">
         
-        {/* Header Identitas - Menyamakan dengan Header Preorder */}
+        {/* Header Identitas */}
         <div className="mb-10">
           <h1 className="text-4xl font-black text-red-600 italic tracking-tighter mb-2">
             DCMC LOGISTICS
@@ -57,7 +77,7 @@ export default function LoginPage() {
               type="password"
               placeholder="••••••••"
               value={inputCode}
-              onChange={(e) => setInputCode(e.target.value)}
+              onChange={(e) => setInputCode(e.target.value.toUpperCase())} // Otomatis ubah jadi huruf besar
               className="w-full p-4 rounded bg-slate-900 border border-slate-700 text-white text-center text-xl tracking-[0.5em] outline-none focus:border-red-600 transition-all"
               required
             />
