@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 // Jika menggunakan Next.js, pastikan baris ini di-uncomment:
 import { useRouter } from "next/navigation"; 
-import { ShoppingCart, Package, ClipboardList, Shield, Check, X, Search, Bell, Archive, Copy, Lock, Calculator, Wallet, CreditCard, TrendingUp, DollarSign, Download, ChevronLeft, ChevronRight, Loader2, User } from "lucide-react";
+import { ShoppingCart, Package, ClipboardList, Shield, Check, X, Search, Bell, Archive, Copy, Lock, Calculator, Wallet, CreditCard, TrendingUp, DollarSign, Download, ChevronLeft, ChevronRight, Loader2, User, Leaf } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 export default function PreOrderPage() {
@@ -26,8 +26,9 @@ export default function PreOrderPage() {
   const [searchNama, setSearchNama] = useState(""); 
   const [activeTab, setActiveTab] = useState("order");
   
-  // State Kalkulator Umer
+  // State Kalkulator Umer & Bibit
   const [inputUmer, setInputUmer] = useState("");
+  const [inputBibit, setInputBibit] = useState("");
 
   // State Dashboard Keuangan & Pagination
   const [financeVendor, setFinanceVendor] = useState("");
@@ -157,7 +158,6 @@ export default function PreOrderPage() {
     setLoading(false);
   };
 
-  // PENINGKATAN: All Arrived sekarang tembak Discord
   const requestMarkAllArrived = (vName) => {
     setConfirmDialog({
       isOpen: true,
@@ -167,7 +167,6 @@ export default function PreOrderPage() {
         const loadingToast = toast.loading(`Memperbarui & Announce ${vName}...`);
         setLoading(true);
         try {
-          // 1. Update Database
           await fetch(GAS_URL, {
             method: 'POST',
             body: JSON.stringify({ action: "update", sheet: "preOrder", condition: { Nama_Vendor: vName, Status_Pesanan: "PROSES" }, set: { Status_Pesanan: "READY" } })
@@ -175,7 +174,6 @@ export default function PreOrderPage() {
           
           refreshData(true);
 
-          // 2. Announce ke Discord
           const message = {
             content: ` @everyone 📦 **BARANG TIBA!**`,
             embeds: [{
@@ -217,12 +215,11 @@ export default function PreOrderPage() {
     });
   };
 
-  // PENINGKATAN: Fix limit karakter Discord (Potong daftar panjang)
   const sendDiscordAnnouncement = async (type, vendorName) => {
     const isOpening = type === "OPEN";
     const vendorItems = allVendorData.filter(v => v.namaVendor === vendorName);
     
-    const MAX_ITEMS = 12; // Batas aman agar tidak kena error 1024 char
+    const MAX_ITEMS = 12;
     let itemsToShow = vendorItems.slice(0, MAX_ITEMS);
     
     let itemRows = itemsToShow.map(item => `🔹 **${item.namaBarang}** — \`$${Number(item.hargaBarang).toLocaleString()}\` *(Sisa: ${getSisaKuota(vendorName, item.namaBarang)})*`).join("\n");
@@ -415,6 +412,7 @@ export default function PreOrderPage() {
     toast.success("Laporan CSV berhasil diunduh!");
   };
 
+  // FUNGSI KALKULATOR UMER
   const hitungUmer = () => {
     const awal = Number(inputUmer) || 0;
     const pot10 = awal * 0.10;
@@ -427,6 +425,48 @@ export default function PreOrderPage() {
     return { awal, pot10, sisaSetelah10, pot15, hasilMurni, jumlahKartu, totalBiayaKartu, hasilDenganKartu };
   };
   const hasilUmer = hitungUmer();
+
+  // FUNGSI KALKULATOR BIBIT (TERUPDATE DENGAN LOGIKA UANG MERAH)
+  const hitungBibit = () => {
+    const jumlahBibit = Number(inputBibit) || 0;
+    const hargaBibit = 700;
+    const yieldPerBibit = 5; // Minimal 5 weed
+    const hargaJualWeed = 500; // Uang Merah
+    const modalBaggyKantor = 50;
+    const modalBaggyKaleng = 36;
+
+    const totalWeed = jumlahBibit * yieldPerBibit;
+    const totalBiayaBibit = jumlahBibit * hargaBibit;
+
+    const totalBiayaBaggyKantor = totalWeed * modalBaggyKantor;
+    const totalBiayaBaggyKaleng = totalWeed * modalBaggyKaleng;
+
+    // Total Modal (Uang Putih)
+    const modalTotalKantor = totalBiayaBibit + totalBiayaBaggyKantor;
+    const modalTotalKaleng = totalBiayaBibit + totalBiayaBaggyKaleng;
+
+    // Pendapatan UANG MERAH
+    const totalPendapatanMerah = totalWeed * hargaJualWeed;
+
+    // Proses Pencucian ke UANG PUTIH (Potong 10%, lalu 15%)
+    const pot10 = totalPendapatanMerah * 0.10;
+    const sisa1 = totalPendapatanMerah - pot10;
+    const pot15 = sisa1 * 0.15;
+    const totalPendapatanPutih = sisa1 - pot15;
+
+    // Profit Bersih (Uang Putih - Modal Uang Putih)
+    const profitKantor = totalPendapatanPutih - modalTotalKantor;
+    const profitKaleng = totalPendapatanPutih - modalTotalKaleng;
+
+    return { 
+      jumlahBibit, totalWeed, totalBiayaBibit, 
+      totalBiayaBaggyKantor, totalBiayaBaggyKaleng,
+      modalTotalKantor, modalTotalKaleng,
+      totalPendapatanMerah, totalPendapatanPutih, 
+      profitKantor, profitKaleng 
+    };
+  };
+  const hasilBibit = hitungBibit();
 
   const hitungDashboardKeuangan = () => {
     let totalOmset = 0;
@@ -480,7 +520,6 @@ export default function PreOrderPage() {
     );
   }
 
-  // TAMPILAN JIKA BELUM LOGIN
   if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-200 p-6 text-center">
@@ -515,7 +554,7 @@ export default function PreOrderPage() {
         </div>
       )}
 
-      {/* HEADER (Tombol Ganti Mode Dihapus, diganti Label Status) */}
+      {/* HEADER */}
       <header className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center shadow-sm">
         <h1 className="text-xl md:text-2xl font-black text-red-500 italic tracking-tight">
           DCMC HUB
@@ -774,9 +813,11 @@ export default function PreOrderPage() {
           </div>
         )}
 
-        {/* --- TAB 3: KALKULATOR UMER --- */}
+        {/* --- TAB 3: KALKULATOR UMER & BIBIT --- */}
         {activeTab === 'kalkulator' && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-2xl mx-auto">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-2xl mx-auto space-y-6">
+            
+            {/* KALKULATOR UMER */}
             <div className="bg-slate-900 border border-slate-800 p-6 md:p-8 rounded-2xl shadow-xl">
               <div className="mb-6 border-b border-slate-800 pb-4 text-center">
                 <Calculator className="text-red-500 mx-auto mb-2" size={32} />
@@ -842,6 +883,86 @@ export default function PreOrderPage() {
                 )}
               </div>
             </div>
+
+            {/* KALKULATOR BIBIT (BARU & TERUPDATE) */}
+            <div className="bg-slate-900 border border-slate-800 p-6 md:p-8 rounded-2xl shadow-xl">
+              <div className="mb-6 border-b border-slate-800 pb-4 text-center">
+                <Leaf className="text-green-500 mx-auto mb-2" size={32} />
+                <h2 className="text-xl font-bold text-white tracking-tight">Kalkulator Panen Bibit</h2>
+                <p className="text-sm text-slate-400 mt-1">Hitung estimasi modal dan profit dari menanam bibit.</p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Jumlah Bibit</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">🌱</span>
+                    <input 
+                      type="number" 
+                      placeholder="Contoh: 10" 
+                      className="w-full pl-10 pr-4 py-4 rounded-xl bg-slate-950 border border-slate-700 text-xl font-black text-green-400 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all" 
+                      value={inputBibit} 
+                      onChange={(e) => setInputBibit(e.target.value)} 
+                    />
+                  </div>
+                </div>
+
+                {hasilBibit.jumlahBibit > 0 && (
+                  <div className="bg-slate-950 rounded-xl p-5 border border-slate-800 space-y-5 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between items-center bg-slate-900/50 p-3 rounded-lg border border-slate-800">
+                        <span className="text-slate-400">Total Hasil (Minimal 5/bibit)</span>
+                        <span className="font-bold text-white">{hasilBibit.totalWeed} Baggy</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center p-2 px-3">
+                        <span className="text-slate-500">Estimasi Uang Merah Kotor ($500/baggy)</span>
+                        <span className="text-yellow-500 font-medium">+ ${hasilBibit.totalPendapatanMerah.toLocaleString()}</span>
+                      </div>
+
+                      {/* Baris Pencucian Uang */}
+                      <div className="flex justify-between items-center p-2 px-3 border-l-2 border-green-500 bg-green-500/5 ml-2">
+                        <span className="text-green-500 font-medium text-xs">Uang Putih Hasil Cuci (Potongan 10% & 15%)</span>
+                        <span className="text-green-400 font-bold">+ ${hasilBibit.totalPendapatanPutih.toLocaleString()}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center p-2 px-3 border-t border-slate-800/50 mt-2">
+                        <span className="text-slate-500">Modal Bibit Uang Putih ($700/bibit)</span>
+                        <span className="text-red-400 font-medium">- ${hasilBibit.totalBiayaBibit.toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-slate-800 w-full my-4"></div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 bg-blue-500/20 px-3 py-1 rounded-bl-lg text-[10px] font-bold text-blue-400">BAGGY KANTOR</div>
+                        <div className="flex justify-between items-center mb-1 mt-2 text-xs">
+                          <span className="text-slate-400">Modal Baggy ($50)</span>
+                          <span className="text-red-400 font-medium">- ${hasilBibit.totalBiayaBaggyKantor.toLocaleString()}</span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-400 mb-1 mt-2">Profit Uang Putih</p>
+                        <span className="text-3xl font-black text-blue-400 flex items-center gap-2">
+                          ${hasilBibit.profitKantor.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="bg-purple-500/10 border border-purple-500/20 p-4 rounded-xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 bg-purple-500/20 px-3 py-1 rounded-bl-lg text-[10px] font-bold text-purple-400">BAGGY KALENG</div>
+                        <div className="flex justify-between items-center mb-1 mt-2 text-xs">
+                          <span className="text-slate-400">Modal Baggy ($36)</span>
+                          <span className="text-red-400 font-medium">- ${hasilBibit.totalBiayaBaggyKaleng.toLocaleString()}</span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-400 mb-1 mt-2">Profit Uang Putih</p>
+                        <span className="text-3xl font-black text-purple-400 flex items-center gap-2">
+                          ${hasilBibit.profitKaleng.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         )}
 
