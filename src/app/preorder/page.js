@@ -22,6 +22,7 @@ export default function PreOrderPage() {
   
   // State Filter, UI & Tab
   const [filterBelumAmbil, setFilterBelumAmbil] = useState(false);
+  const [showArchived, setShowArchived] = useState(false); // STATE BARU UNTUK ARSIP
   const [filterVendor, setFilterVendor] = useState("");
   const [searchNama, setSearchNama] = useState(""); 
   const [activeTab, setActiveTab] = useState("order");
@@ -58,7 +59,6 @@ export default function PreOrderPage() {
     
     if (access === "true") {
       setIsAuthorized(true);
-      // Membaca status admin dari halaman login
       if (adminStatus === "true") {
         setIsAdmin(true);
       }
@@ -102,7 +102,8 @@ export default function PreOrderPage() {
       const resO = await fetch(`${GAS_URL}?action=read&sheet=preOrder`);
       const rawO = await resO.json();
       if (Array.isArray(rawO)) {
-        setOrderList(rawO.filter(o => o.Archived !== "YES").reverse());
+        // PERUBAHAN: Simpan semua data tanpa difilter agar arsip nyangkut bisa dilacak
+        setOrderList(rawO.reverse());
       }
     } catch (err) { 
       if (!isSilent) toast.error("Gagal menyinkronkan data.");
@@ -115,7 +116,8 @@ export default function PreOrderPage() {
     const itemAwal = allVendorData.find(v => v.namaVendor === vName && v.namaBarang === bName);
     const kuotaMaksimal = itemAwal ? itemAwal.kuota : 0;
     let totalDipesanDatabase = 0;
-    orderList.filter(o => o.Nama_Vendor === vName).forEach(order => {
+    // PERUBAHAN: Jangan hitung yang sudah di-arsip agar kuota tidak kacau
+    orderList.filter(o => o.Nama_Vendor === vName && o.Archived !== "YES").forEach(order => {
       if (!order.Nama_Barang) return;
       const items = order.Nama_Barang.split(", ");
       items.forEach(itemStr => {
@@ -133,7 +135,8 @@ export default function PreOrderPage() {
 
   const getRekapVendor = (vName) => {
     const summary = {};
-    orderList.filter(o => o.Nama_Vendor === vName).forEach(order => {
+    // PERUBAHAN: Jangan masukkan yang sudah di-arsip ke dalam rekap
+    orderList.filter(o => o.Nama_Vendor === vName && o.Archived !== "YES").forEach(order => {
       if (!order.Nama_Barang) return;
       const items = order.Nama_Barang.split(", ");
       items.forEach(itemStr => {
@@ -381,7 +384,9 @@ export default function PreOrderPage() {
 
   const exportToCSV = () => {
     const headers = "Tanggal,Nama Pemesan,Vendor,Barang,Total Qty,Subtotal (Omset),Total Modal,Status Bayar,Status Pesanan,Status Ambil\n";
-    const rows = orderList.map(o => {
+    // PERUBAHAN: Hanya Export data yang aktif (belum diarsipkan)
+    const activeOrders = orderList.filter(o => o.Archived !== "YES");
+    const rows = activeOrders.map(o => {
       let modalData = Number(o.Modal_Vendor);
       if (isNaN(modalData) || o.Modal_Vendor === undefined || o.Modal_Vendor === "") {
          modalData = 0;
@@ -412,7 +417,6 @@ export default function PreOrderPage() {
     toast.success("Laporan CSV berhasil diunduh!");
   };
 
-  // FUNGSI KALKULATOR UMER
   const hitungUmer = () => {
     const awal = Number(inputUmer) || 0;
     const pot10 = awal * 0.10;
@@ -426,7 +430,6 @@ export default function PreOrderPage() {
   };
   const hasilUmer = hitungUmer();
 
-  // FUNGSI KALKULATOR BIBIT (TERUPDATE DENGAN LOGIKA UANG MERAH)
   const hitungBibit = () => {
     const jumlahBibit = Number(inputBibit) || 0;
     const hargaBibit = 700;
@@ -471,9 +474,12 @@ export default function PreOrderPage() {
   const hitungDashboardKeuangan = () => {
     let totalOmset = 0;
     let totalModal = 0;
-    const filteredOrders = financeVendor ? orderList.filter(o => o.Nama_Vendor === financeVendor) : orderList;
+    
+    // PERUBAHAN: Hitung keuangan dari pesanan yang AKTIF saja
+    const activeOrders = orderList.filter(o => o.Archived !== "YES");
+    const filteredOrdersFinance = financeVendor ? activeOrders.filter(o => o.Nama_Vendor === financeVendor) : activeOrders;
 
-    filteredOrders.forEach(order => {
+    filteredOrdersFinance.forEach(order => {
       totalOmset += Number(order.Subtotal) || 0;
       
       if (order.Modal_Vendor !== undefined && order.Modal_Vendor !== "") {
@@ -499,11 +505,17 @@ export default function PreOrderPage() {
   };
   const financeStats = hitungDashboardKeuangan();
 
+  // PERUBAHAN: Logika Filter yang mendukung Fitur Arsip Nyangkut
   const filteredOrders = orderList.filter(o => {
+    const isArchivedTarget = showArchived 
+      ? (o.Archived === "YES" && o.Status_Ambil !== "SUDAH") 
+      : o.Archived !== "YES";
+      
     const isBelumAmbil = filterBelumAmbil ? o.Status_Ambil !== "SUDAH" : true;
     const isVendorMatch = filterVendor ? o.Nama_Vendor === filterVendor : true;
     const isNamaMatch = searchNama ? (o.Nama_Pemesan || "").toLowerCase().includes(searchNama.toLowerCase()) : true;
-    return isBelumAmbil && isVendorMatch && isNamaMatch;
+    
+    return isArchivedTarget && isBelumAmbil && isVendorMatch && isNamaMatch;
   });
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
@@ -725,9 +737,18 @@ export default function PreOrderPage() {
         {/* --- TAB 2: HISTORY / ORDERS (WITH PAGINATION) --- */}
         {activeTab === 'history' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+             
+             {/* BANNER MODE ARSIP JIKA AKTIF */}
+             {showArchived && (
+               <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 p-3 rounded-xl mb-4 text-sm font-bold flex items-center justify-center gap-2 animate-pulse">
+                 <Archive size={16} /> MODO ARSIP: Menampilkan pesanan lama yang belum diambil.
+               </div>
+             )}
+
              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 bg-slate-900 p-4 rounded-2xl border border-slate-800">
                 <div className="flex items-center gap-2 text-lg font-bold min-w-fit">
-                  <ClipboardList className="text-red-500" size={20} /> Riwayat Pesanan
+                  <ClipboardList className={showArchived ? "text-amber-400" : "text-red-500"} size={20} /> 
+                  {showArchived ? "Gudang Arsip" : "Riwayat Pesanan"}
                 </div>
                 
                 <div className="flex flex-wrap lg:flex-nowrap gap-2 w-full lg:w-auto">
@@ -755,13 +776,25 @@ export default function PreOrderPage() {
                     </select>
                   </div>
                   
+                  {/* PERUBAHAN: Tombol Toggle Arsip & Belum Ambil */}
                   <div className="flex gap-2 w-full sm:w-auto">
                     <button 
-                      onClick={() => { setFilterBelumAmbil(!filterBelumAmbil); setCurrentPage(1); }} 
-                      className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border ${filterBelumAmbil ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'}`}
+                      onClick={() => { setShowArchived(!showArchived); setCurrentPage(1); }} 
+                      className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border ${showArchived ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'}`}
                     >
-                      {filterBelumAmbil ? "Tampil Semua" : "Belum Diambil"}
+                      {showArchived ? "Ke Utama" : "Arsip Nyangkut"}
                     </button>
+
+                    {/* Tombol filter belum diambil hanya muncul saat bukan di mode arsip */}
+                    {!showArchived && (
+                      <button 
+                        onClick={() => { setFilterBelumAmbil(!filterBelumAmbil); setCurrentPage(1); }} 
+                        className={`flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border ${filterBelumAmbil ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' : 'bg-slate-950 text-slate-400 border-slate-700 hover:bg-slate-800'}`}
+                      >
+                        {filterBelumAmbil ? "Tampil Semua" : "Belum Diambil"}
+                      </button>
+                    )}
+
                     <button onClick={() => {toast.success("Menyinkronkan data..."); refreshData();}} className="px-4 py-2.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-lg text-sm font-medium text-slate-300 transition-colors">
                       Refresh
                     </button>
@@ -771,8 +804,9 @@ export default function PreOrderPage() {
 
              <div className="space-y-4 mb-6">
                {paginatedOrders.length === 0 ? (
-                  <div className="text-center p-10 bg-slate-900 border border-slate-800 rounded-2xl text-slate-500">
-                    Tidak ada pesanan yang sesuai dengan filter.
+                  <div className="text-center p-10 bg-slate-900 border border-slate-800 rounded-2xl text-slate-500 flex flex-col items-center">
+                    {showArchived ? <Archive size={40} className="mb-3 opacity-20"/> : ""}
+                    {showArchived ? "Gudang arsip bersih. Tidak ada barang tertinggal." : "Tidak ada pesanan yang sesuai dengan filter."}
                   </div>
                ) : (
                  paginatedOrders.map((order, idx) => (
