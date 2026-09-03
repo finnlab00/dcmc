@@ -18,12 +18,6 @@ export default function TabLaundry({ isAdmin, webhookUrl }) {
 
   const MAKS_KUOTA = 8000000;
 
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(() => fetchData(true), 10000); // Auto-refresh 10 detik
-    return () => clearInterval(interval);
-  }, []);
-
   const fetchData = async (isSilent = false) => {
     try {
       const [resSettings, resQueue] = await Promise.all([
@@ -38,6 +32,15 @@ export default function TabLaundry({ isAdmin, webhookUrl }) {
       setIsFetching(false);
     }
   };
+
+  useEffect(() => {
+    const initialLoad = setTimeout(() => fetchData(), 0);
+    const interval = setInterval(() => fetchData(true), 10000); // Auto-refresh 10 detik
+    return () => {
+      clearTimeout(initialLoad);
+      clearInterval(interval);
+    };
+  }, []);
 
   // FILTERING: Memisahkan "Hantu Penjaga Kamar" dari data asli
   const actualQueue = queue.filter(q => q.nama_pemesan !== "_SYSTEM_ROOM_");

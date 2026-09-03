@@ -9,7 +9,6 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Bersihkan sesi lama saat kembali ke login
   useEffect(() => {
     sessionStorage.clear();
   }, []);
@@ -18,85 +17,40 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
 
-    // ==========================================
-    // PENGATURAN KODE AKSES (PASSWORD)
-    // ==========================================
     const MEMBER_CODE = "DCMC2026";
-    const ADMIN_CODE = "ADMIN123"; // Silakan ganti kode rahasia admin di sini
+    const ADMIN_CODE = "ADMIN123";
 
-    if (inputCode === MEMBER_CODE) {
+    if (inputCode === MEMBER_CODE || inputCode === ADMIN_CODE) {
       sessionStorage.setItem("access_granted", "true");
-      sessionStorage.setItem("is_admin", "false"); // Jalur Member
-      
-      toast.success("Akses Member Diterima!");
-      setTimeout(() => {
-        router.push("/preorder");
-      }, 1000);
-      
-    } else if (inputCode === ADMIN_CODE) {
-      sessionStorage.setItem("access_granted", "true");
-      sessionStorage.setItem("is_admin", "true"); // Jalur VIP Admin
-      
-      toast.success("Akses ADMIN Diterima!");
-      setTimeout(() => {
-        router.push("/preorder");
-      }, 1000);
-      
+      sessionStorage.setItem("is_admin", inputCode === ADMIN_CODE ? "true" : "false");
+      toast.success(inputCode === ADMIN_CODE ? "Akses ADMIN Diterima!" : "Akses Member Diterima!");
+      setTimeout(() => router.push("/preorder"), 1000);
     } else {
       toast.error("KODE AKSES SALAH!");
-      setInputCode(""); // Mengosongkan input otomatis jika salah
+      setInputCode("");
       setIsLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4 font-sans uppercase">
-      {/* Komponen Notifikasi Modern */}
       <Toaster position="top-center" toastOptions={{ style: { background: '#1e293b', color: '#fff', borderRadius: '12px', border: '1px solid #334155' } }} />
-      
       <div className="max-w-md w-full bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl text-center">
-        
-        {/* Header Identitas */}
         <div className="mb-10">
-          <h1 className="text-4xl font-black text-red-600 italic tracking-tighter mb-2">
-            DCMC LOGISTICS
-          </h1>
+          <h1 className="text-4xl font-black text-red-600 italic tracking-tighter mb-2">DCMC LOGISTICS</h1>
           <div className="h-1 w-20 bg-red-600 mx-auto mb-4"></div>
-          <p className="text-[10px] font-bold text-slate-500 tracking-[0.3em]">
-            SECURE ACCESS PORTAL
-          </p>
+          <p className="text-[10px] font-bold text-slate-500 tracking-[0.3em]">SECURE ACCESS PORTAL</p>
         </div>
-
-        {/* Form Login */}
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="text-left">
-            <label className="text-[9px] font-black text-slate-400 mb-2 block tracking-widest">
-              ENTER ACCESS CODE
-            </label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={inputCode}
-              onChange={(e) => setInputCode(e.target.value.toUpperCase())} // Otomatis ubah jadi huruf besar
-              className="w-full p-4 rounded bg-slate-900 border border-slate-700 text-white text-center text-xl tracking-[0.5em] outline-none focus:border-red-600 transition-all"
-              required
-            />
+            <label className="text-[9px] font-black text-slate-400 mb-2 block tracking-widest">ENTER ACCESS CODE</label>
+            <input type="password" placeholder="••••••••" value={inputCode} onChange={(e) => setInputCode(e.target.value.toUpperCase())} className="w-full p-4 rounded bg-slate-900 border border-slate-700 text-white text-center text-xl tracking-[0.5em] outline-none focus:border-red-600 transition-all" required />
           </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-red-600 hover:bg-red-700 p-4 rounded font-black text-[12px] tracking-[0.2em] transition-all disabled:bg-slate-700 shadow-lg shadow-red-900/20"
-          >
+          <button type="submit" disabled={isLoading} className="w-full bg-red-600 hover:bg-red-700 p-4 rounded font-black text-[12px] tracking-[0.2em] transition-all disabled:bg-slate-700 shadow-lg shadow-red-900/20">
             {isLoading ? "VERIFYING..." : "GRANT ACCESS"}
           </button>
         </form>
-
-        <footer className="mt-12">
-          <p className="text-[8px] text-slate-600 font-bold tracking-widest">
-            © 2026 DCMC SYSTEM | INTERNAL USE ONLY
-          </p>
-        </footer>
+        <footer className="mt-12"><p className="text-[8px] text-slate-600 font-bold tracking-widest">© 2026 DCMC SYSTEM | INTERNAL USE ONLY</p></footer>
       </div>
     </div>
   );

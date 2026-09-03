@@ -47,24 +47,6 @@ export default function PreOrderPage() {
   const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1544161220154630285/fWZm8_B2ffynFIlnGWjGgidQp4XV0W2qATjgQSQEN_wEBZcyZqb5GavobPp3_0PvC5l0";
   const WEBSITE_URL = "https://dcmc-sable.vercel.app/";
 
-  useEffect(() => {
-    const access = typeof window !== 'undefined' ? sessionStorage.getItem("access_granted") : null;
-    const adminStatus = typeof window !== 'undefined' ? sessionStorage.getItem("is_admin") : null;
-    if (access === "true") {
-      setIsAuthorized(true);
-      if (adminStatus === "true") setIsAdmin(true);
-      refreshData();
-    } else {
-      setIsAuthorized(false); setIsChecking(false); router.replace("/");
-    }
-  }, [router]);
-
-  useEffect(() => {
-    let interval;
-    if (isAuthorized) interval = setInterval(() => { refreshData(true); }, 30000);
-    return () => clearInterval(interval);
-  }, [isAuthorized]);
-
   const refreshData = async (isSilent = false) => {
     try {
       const { data: rawV, error: errV } = await supabase.from('vendors').select('*');
@@ -76,24 +58,46 @@ export default function PreOrderPage() {
           statusOpen: item.status_open ? "YES" : "NO", kuota: Number(item.kuota) || 0
         }));
         setAllVendorData(normalized);
-        const openVendors = normalized.filter(v => v.statusOpen === "YES");
-        setDaftarVendorUnik([...new Set(openVendors.map(v => v.namaVendor))]);
+        setDaftarVendorUnik([...new Set(normalized.filter(v => v.statusOpen === "YES").map(v => v.namaVendor))]);
       }
       const { data: rawO, error: errO } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
       if (errO) throw errO;
-      if (rawO) {
-        const normalizedOrders = rawO.map(o => ({
-          id: o.id, Tanggal: new Date(o.created_at).toLocaleString("id-ID"), Nama_Pemesan: o.nama_pemesan,
-          Nama_Vendor: o.nama_vendor, Nama_Barang: o.nama_barang, Jumlah: Number(o.jumlah), Subtotal: Number(o.subtotal),
-          Modal_Vendor: Number(o.modal_vendor), Status_Bayar: o.status_bayar, Status_Pesanan: o.status_pesanan,
-          Status_Ambil: o.status_ambil, Archived: o.archived ? "YES" : "NO"
-        }));
-        setOrderList(normalizedOrders);
-      }
-    } catch (err) { 
+      if (rawO) setOrderList(rawO.map(o => ({
+        id: o.id, Tanggal: new Date(o.created_at).toLocaleString("id-ID"), Nama_Pemesan: o.nama_pemesan,
+        Nama_Vendor: o.nama_vendor, Nama_Barang: o.nama_barang, Jumlah: Number(o.jumlah), Subtotal: Number(o.subtotal),
+        Modal_Vendor: Number(o.modal_vendor), Status_Bayar: o.status_bayar, Status_Pesanan: o.status_pesanan,
+        Status_Ambil: o.status_ambil, Archived: o.archived ? "YES" : "NO"
+      })));
+    } catch (err) {
       if (!isSilent) toast.error("Koneksi Supabase Gagal! Cek Console.");
     } finally { setIsChecking(false); }
   };
+
+  useEffect(() => {
+    const access = typeof window !== 'undefined' ? sessionStorage.getItem("access_granted") : null;
+    const adminStatus = typeof window !== 'undefined' ? sessionStorage.getItem("is_admin") : null;
+    let initialLoad;
+    if (access === "true") {
+      setTimeout(() => {
+        setIsAuthorized(true);
+        setIsAdmin(adminStatus === "true");
+      }, 0);
+      initialLoad = setTimeout(() => refreshData(), 0);
+    } else {
+      initialLoad = setTimeout(() => {
+        setIsAuthorized(false);
+        setIsChecking(false);
+      }, 0);
+      router.replace("/");
+    }
+    return () => clearTimeout(initialLoad);
+  }, [router]);
+
+  useEffect(() => {
+    let interval;
+    if (isAuthorized) interval = setInterval(() => { refreshData(true); }, 30000);
+    return () => clearInterval(interval);
+  }, [isAuthorized]);
 
   // === FUNGSI LOGIKA PRE-ORDER === (Disembunyikan agar kode rapi, fungsi sama persis)
   const getSisaKuota = (vName, bName) => {
