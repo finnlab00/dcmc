@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Package, ClipboardList, Shield, Calculator, User, AlertCircle, RefreshCcw } from "lucide-react"; // <-- RefreshCcw ditambahkan
+import { Package, ClipboardList, Shield, Calculator, User, AlertCircle, RefreshCcw } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { supabase } from "@/lib/supabase"; 
 
@@ -9,7 +9,7 @@ import TabKalkulator from "@/components/TabKalkulator";
 import TabPesan from "@/components/TabPesan";
 import TabRiwayat from "@/components/TabRiwayat";
 import TabAdmin from "@/components/TabAdmin";
-import TabLaundry from "@/components/TabLaundry"; // <-- Tab Laundry diimport
+import TabLaundry from "@/components/TabLaundry";
 
 export default function PreOrderPage() {
   const [allVendorData, setAllVendorData] = useState([]);
@@ -27,7 +27,7 @@ export default function PreOrderPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [filterVendor, setFilterVendor] = useState("");
   const [searchNama, setSearchNama] = useState("");
-  const [activeTab, setActiveTab] = useState("order"); // Tab default
+  const [activeTab, setActiveTab] = useState("order");
 
   const [inputUmer, setInputUmer] = useState("");
   const [inputBibit, setInputBibit] = useState("");
@@ -43,8 +43,9 @@ export default function PreOrderPage() {
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: "", message: "", onConfirm: null, isDanger: false });
   const router = useRouter();
 
-  // WEBHOOK BARU ANDA
-  const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1544161220154630285/fWZm8_B2ffynFIlnGWjGgidQp4XV0W2qATjgQSQEN_wEBZcyZqb5GavobPp3_0PvC5l0";
+  // === WEBHOOK YANG SUDAH DIPISAH ===
+  const WEBHOOK_PEMESANAN = "https://discord.com/api/webhooks/1522683134620205160/lxJSiUlPFQ_9J24uZ6BwrrBJN4Ht3Y3H97ZXYAkWHJZVSF0TfjM6XzOhoWhS5WOa_8Ak";
+  const WEBHOOK_UMER = "https://discord.com/api/webhooks/1544161220154630285/fWZm8_B2ffynFIlnGWjGgidQp4XV0W2qATjgQSQEN_wEBZcyZqb5GavobPp3_0PvC5l0";
   const WEBSITE_URL = "https://dcmc-sable.vercel.app/";
 
   const refreshData = async (isSilent = false) => {
@@ -99,7 +100,6 @@ export default function PreOrderPage() {
     return () => clearInterval(interval);
   }, [isAuthorized]);
 
-  // === FUNGSI LOGIKA PRE-ORDER === (Disembunyikan agar kode rapi, fungsi sama persis)
   const getSisaKuota = (vName, bName) => {
     const itemAwal = allVendorData.find(v => v.namaVendor === vName && v.namaBarang === bName);
     const kuotaMaksimal = itemAwal ? itemAwal.kuota : 0;
@@ -206,7 +206,8 @@ export default function PreOrderPage() {
         setLoading(true);
         try {
           await supabase.from('orders').update({ status_pesanan: 'READY' }).eq('nama_vendor', vName).eq('status_pesanan', 'PROSES');
-          await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `@everyone 📦 **BARANG TIBA!**\nPesanan ${vName} siap diambil.` }) });
+          // === MENGGUNAKAN WEBHOOK PEMESANAN ===
+          await fetch(WEBHOOK_PEMESANAN, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `@everyone 📦 **BARANG TIBA!**\nPesanan ${vName} siap diambil.` }) });
           refreshData(true); toast.success("Selesai!");
         } catch (err) {} setLoading(false);
       }
@@ -223,7 +224,8 @@ export default function PreOrderPage() {
   };
 
   const sendDiscordAnnouncement = async (type, vName) => {
-    try { await fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: type === "OPEN" ? `@everyone 📢 PO ${vName} DIBUKA di ${WEBSITE_URL}` : `📢 PO ${vName} DITUTUP.` }) }); toast.success("Terkirim!"); } catch(e) {}
+    // === MENGGUNAKAN WEBHOOK PEMESANAN ===
+    try { await fetch(WEBHOOK_PEMESANAN, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: type === "OPEN" ? `@everyone 📢 PO ${vName} DIBUKA di ${WEBSITE_URL}` : `📢 PO ${vName} DITUTUP.` }) }); toast.success("Terkirim!"); } catch(e) {}
   };
 
   const exportToCSV = () => { toast.success("Fungsi Export CSV berjalan."); };
@@ -290,7 +292,7 @@ export default function PreOrderPage() {
         </div>
         <nav className="hidden md:flex gap-2">
           <TabBtn active={activeTab==='order'} onClick={()=>setActiveTab('order')} icon={<Package size={18}/>} label="Pesan" badge={keranjang.length} />
-          <TabBtn active={activeTab==='laundry'} onClick={()=>setActiveTab('laundry')} icon={<RefreshCcw size={18}/>} label="Cuci Uang" /> {/* TAB BARU */}
+          <TabBtn active={activeTab==='laundry'} onClick={()=>setActiveTab('laundry')} icon={<RefreshCcw size={18}/>} label="Cuci Uang" />
           <TabBtn active={activeTab==='history'} onClick={()=>setActiveTab('history')} icon={<ClipboardList size={18}/>} label="Riwayat" />
           <TabBtn active={activeTab==='kalkulator'} onClick={()=>setActiveTab('kalkulator')} icon={<Calculator size={18}/>} label="Kalkulator" />
           {isAdmin && <TabBtn active={activeTab==='admin'} onClick={()=>setActiveTab('admin')} icon={<Shield size={18}/>} label="Admin" />}
@@ -303,7 +305,7 @@ export default function PreOrderPage() {
       {/* MOBILE NAV */}
       <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] bg-zinc-950/95 border border-zinc-800 rounded-full z-50 flex justify-around p-1.5 shadow-2xl">
           <TabBtn active={activeTab==='order'} onClick={()=>setActiveTab('order')} icon={<Package size={20}/>} label="Pesan" badge={keranjang.length} />
-          <TabBtn active={activeTab==='laundry'} onClick={()=>setActiveTab('laundry')} icon={<RefreshCcw size={20}/>} label="Cuci" /> {/* TAB BARU */}
+          <TabBtn active={activeTab==='laundry'} onClick={()=>setActiveTab('laundry')} icon={<RefreshCcw size={20}/>} label="Cuci" />
           <TabBtn active={activeTab==='history'} onClick={()=>setActiveTab('history')} icon={<ClipboardList size={20}/>} label="Riwayat" />
           <TabBtn active={activeTab==='kalkulator'} onClick={()=>setActiveTab('kalkulator')} icon={<Calculator size={20}/>} label="Hitung" />
           {isAdmin && <TabBtn active={activeTab==='admin'} onClick={()=>setActiveTab('admin')} icon={<Shield size={20}/>} label="Admin" />}
@@ -312,7 +314,9 @@ export default function PreOrderPage() {
       {/* TAB KONTEN */}
       <main className="w-full max-w-7xl mx-auto p-4 md:p-6 mt-4 z-10 relative">
         {activeTab === 'order' && <TabPesan namaPemesan={namaPemesan} setNamaPemesan={setNamaPemesan} selectedVendor={selectedVendor} setSelectedVendor={setSelectedVendor} selectedBarang={selectedBarang} setSelectedBarang={setSelectedBarang} jumlah={jumlah} setJumlah={setJumlah} keranjang={keranjang} setKeranjang={setKeranjang} allVendorData={allVendorData} daftarVendorUnik={daftarVendorUnik} barangTersedia={barangTersedia} setBarangTersedia={setBarangTersedia} handleAddToCart={handleAddToCart} handleCheckout={handleCheckout} getSisaKuota={getSisaKuota} loading={loading} />}
-        {activeTab === 'laundry' && <TabLaundry isAdmin={isAdmin} webhookUrl={DISCORD_WEBHOOK_URL} />} {/* TAB BARU DIAKTIFKAN */}
+        {/* === TAB LAUNDRY MENGGUNAKAN WEBHOOK UMER === */}
+        {activeTab === 'laundry' && <TabLaundry isAdmin={isAdmin} webhookUrl={WEBHOOK_UMER} />}
+
         {activeTab === 'history' && <TabRiwayat showArchived={showArchived} setShowArchived={setShowArchived} searchNama={searchNama} setSearchNama={setSearchNama} setCurrentPage={setCurrentPage} filterVendor={filterVendor} setFilterVendor={setFilterVendor} orderList={orderList} filterBelumAmbil={filterBelumAmbil} setFilterBelumAmbil={setFilterBelumAmbil} paginatedOrders={paginatedOrders} totalPages={totalPages} currentPage={currentPage} isAdmin={isAdmin} loading={loading} updateOrderStatus={updateOrderStatus} requestCancelOrder={requestCancelOrder} />}
         {activeTab === 'kalkulator' && <TabKalkulator inputUmer={inputUmer} setInputUmer={setInputUmer} inputBibit={inputBibit} setInputBibit={setInputBibit} hasilUmer={hitungUmer()} hasilBibit={hitungBibit()} />}
         {activeTab === 'admin' && isAdmin && <TabAdmin financeVendor={financeVendor} setFinanceVendor={setFinanceVendor} allVendorData={allVendorData} exportToCSV={exportToCSV} financeStats={financeStats} loading={loading} toggleVendorStatus={toggleVendorStatus} getRekapVendor={getRekapVendor} getSisaKuota={getSisaKuota} sendDiscordAnnouncement={sendDiscordAnnouncement} requestMarkAllArrived={requestMarkAllArrived} requestArchive={requestArchive} />}
