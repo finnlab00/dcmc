@@ -115,7 +115,7 @@ export default function TabLaundry({ isAdmin, webhookUrl }) {
   // 2. FUNGSI ADMIN (KONTROL KAMAR & DISCORD)
   // ==========================================
   const bukaKamarBaru = async () => {
-    if (!inputLokasi) { toast.error("Ketik lokasi RP terlebih dahulu!"); return; }
+    if (!inputLokasi) { toast.error("Ketik lokasi cuci terlebih dahulu!"); return; }
     
     const namaKamarBaru = `MENCUCI KE ${inputLokasi.toUpperCase()}`;
 
@@ -325,7 +325,7 @@ export default function TabLaundry({ isAdmin, webhookUrl }) {
                <div className="bg-black/50 border border-zinc-800 p-4 rounded-2xl space-y-3 shadow-inner">
                    <p className="text-[10px] font-black tracking-widest uppercase text-zinc-500">Pintu Utama (Bikin Kamar Baru)</p>
                    <div className="flex gap-2">
-                       <input type="text" placeholder="Lokasi RP (Cth: Bank)" value={inputLokasi} onChange={e => setInputLokasi(e.target.value)}
+                       <input type="text" placeholder="Lokasi Cuci" value={inputLokasi} onChange={e => setInputLokasi(e.target.value)}
                          className="flex-grow bg-zinc-900 border border-zinc-700 text-white text-xs px-3 py-3 rounded-xl outline-none focus:border-indigo-500" />
                        <button disabled={loading} onClick={bukaKamarBaru} 
                          className="bg-indigo-600 text-white px-4 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-500 hover:shadow-[0_0_15px_rgba(79,70,229,0.4)] transition-all active:scale-95 flex items-center gap-1 shrink-0">

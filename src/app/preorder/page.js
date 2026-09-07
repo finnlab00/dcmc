@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Package, ClipboardList, Shield, Calculator, User, AlertCircle, RefreshCcw } from "lucide-react";
+import { Package, ClipboardList, Shield, Calculator, User, AlertCircle, RefreshCcw, Pickaxe } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { supabase } from "@/lib/supabase"; 
 
@@ -10,6 +10,7 @@ import TabPesan from "@/components/TabPesan";
 import TabRiwayat from "@/components/TabRiwayat";
 import TabAdmin from "@/components/TabAdmin";
 import TabLaundry from "@/components/TabLaundry";
+import TabMisi from "@/components/TabMisi"; // <--- Import Komponen Misi
 
 export default function PreOrderPage() {
   const [allVendorData, setAllVendorData] = useState([]);
@@ -27,7 +28,7 @@ export default function PreOrderPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [filterVendor, setFilterVendor] = useState("");
   const [searchNama, setSearchNama] = useState("");
-  const [activeTab, setActiveTab] = useState("order");
+  const [activeTab, setActiveTab] = useState("order"); // Tab default
 
   const [inputUmer, setInputUmer] = useState("");
   const [inputBibit, setInputBibit] = useState("");
@@ -43,9 +44,10 @@ export default function PreOrderPage() {
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, title: "", message: "", onConfirm: null, isDanger: false });
   const router = useRouter();
 
-  // === WEBHOOK YANG SUDAH DIPISAH ===
+  // === WEBHOOK YANG SUDAH TERPISAH RAPI ===
   const WEBHOOK_PEMESANAN = "https://discord.com/api/webhooks/1522683134620205160/lxJSiUlPFQ_9J24uZ6BwrrBJN4Ht3Y3H97ZXYAkWHJZVSF0TfjM6XzOhoWhS5WOa_8Ak";
   const WEBHOOK_UMER = "https://discord.com/api/webhooks/1544161220154630285/fWZm8_B2ffynFIlnGWjGgidQp4XV0W2qATjgQSQEN_wEBZcyZqb5GavobPp3_0PvC5l0";
+  const WEBHOOK_MISI = "https://discord.com/api/webhooks/1545881810146168842/MPeb8-65_Yy7kJLWAE1q8oNscZagikeEYrcW7APIwdbRXgFLjYNysjd_D7tZl_K0BWSk";
   const WEBSITE_URL = "https://dcmc-sable.vercel.app/";
 
   const refreshData = async (isSilent = false) => {
@@ -206,7 +208,6 @@ export default function PreOrderPage() {
         setLoading(true);
         try {
           await supabase.from('orders').update({ status_pesanan: 'READY' }).eq('nama_vendor', vName).eq('status_pesanan', 'PROSES');
-          // === MENGGUNAKAN WEBHOOK PEMESANAN ===
           await fetch(WEBHOOK_PEMESANAN, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: `@everyone 📦 **BARANG TIBA!**\nPesanan ${vName} siap diambil.` }) });
           refreshData(true); toast.success("Selesai!");
         } catch (err) {} setLoading(false);
@@ -224,7 +225,6 @@ export default function PreOrderPage() {
   };
 
   const sendDiscordAnnouncement = async (type, vName) => {
-    // === MENGGUNAKAN WEBHOOK PEMESANAN ===
     try { await fetch(WEBHOOK_PEMESANAN, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: type === "OPEN" ? `@everyone 📢 PO ${vName} DIBUKA di ${WEBSITE_URL}` : `📢 PO ${vName} DITUTUP.` }) }); toast.success("Terkirim!"); } catch(e) {}
   };
 
@@ -290,9 +290,10 @@ export default function PreOrderPage() {
           <img src="/LOGO_DCMC_NRD.png" className="w-10 h-10" />
           <h1 className="text-xl font-black text-white hidden sm:block">DCMC <span className="text-red-600">HUB</span></h1>
         </div>
-        <nav className="hidden md:flex gap-2">
+        <nav className="hidden xl:flex gap-2">
           <TabBtn active={activeTab==='order'} onClick={()=>setActiveTab('order')} icon={<Package size={18}/>} label="Pesan" badge={keranjang.length} />
           <TabBtn active={activeTab==='laundry'} onClick={()=>setActiveTab('laundry')} icon={<RefreshCcw size={18}/>} label="Cuci Uang" />
+          <TabBtn active={activeTab==='misi'} onClick={()=>setActiveTab('misi')} icon={<Pickaxe size={18}/>} label="Misi & Bounty" />
           <TabBtn active={activeTab==='history'} onClick={()=>setActiveTab('history')} icon={<ClipboardList size={18}/>} label="Riwayat" />
           <TabBtn active={activeTab==='kalkulator'} onClick={()=>setActiveTab('kalkulator')} icon={<Calculator size={18}/>} label="Kalkulator" />
           {isAdmin && <TabBtn active={activeTab==='admin'} onClick={()=>setActiveTab('admin')} icon={<Shield size={18}/>} label="Admin" />}
@@ -302,20 +303,25 @@ export default function PreOrderPage() {
         </div>
       </header>
 
-      {/* MOBILE NAV */}
-      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] bg-zinc-950/95 border border-zinc-800 rounded-full z-50 flex justify-around p-1.5 shadow-2xl">
-          <TabBtn active={activeTab==='order'} onClick={()=>setActiveTab('order')} icon={<Package size={20}/>} label="Pesan" badge={keranjang.length} />
-          <TabBtn active={activeTab==='laundry'} onClick={()=>setActiveTab('laundry')} icon={<RefreshCcw size={20}/>} label="Cuci" />
-          <TabBtn active={activeTab==='history'} onClick={()=>setActiveTab('history')} icon={<ClipboardList size={20}/>} label="Riwayat" />
-          <TabBtn active={activeTab==='kalkulator'} onClick={()=>setActiveTab('kalkulator')} icon={<Calculator size={20}/>} label="Hitung" />
-          {isAdmin && <TabBtn active={activeTab==='admin'} onClick={()=>setActiveTab('admin')} icon={<Shield size={20}/>} label="Admin" />}
+      {/* MOBILE NAV (Bisa digeser kalau menu kepanjangan) */}
+      <nav className="xl:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] bg-zinc-950/95 border border-zinc-800 rounded-full z-50 flex justify-start p-1.5 shadow-2xl overflow-x-auto scrollbar-hide gap-1">
+          <div className="flex shrink-0 w-max pr-2">
+            <TabBtn active={activeTab==='order'} onClick={()=>setActiveTab('order')} icon={<Package size={20}/>} label="Pesan" badge={keranjang.length} />
+            <TabBtn active={activeTab==='laundry'} onClick={()=>setActiveTab('laundry')} icon={<RefreshCcw size={20}/>} label="Cuci" />
+            <TabBtn active={activeTab==='misi'} onClick={()=>setActiveTab('misi')} icon={<Pickaxe size={20}/>} label="Misi" />
+            <TabBtn active={activeTab==='history'} onClick={()=>setActiveTab('history')} icon={<ClipboardList size={20}/>} label="Riwayat" />
+            <TabBtn active={activeTab==='kalkulator'} onClick={()=>setActiveTab('kalkulator')} icon={<Calculator size={20}/>} label="Hitung" />
+            {isAdmin && <TabBtn active={activeTab==='admin'} onClick={()=>setActiveTab('admin')} icon={<Shield size={20}/>} label="Admin" />}
+          </div>
       </nav>
 
       {/* TAB KONTEN */}
       <main className="w-full max-w-7xl mx-auto p-4 md:p-6 mt-4 z-10 relative">
         {activeTab === 'order' && <TabPesan namaPemesan={namaPemesan} setNamaPemesan={setNamaPemesan} selectedVendor={selectedVendor} setSelectedVendor={setSelectedVendor} selectedBarang={selectedBarang} setSelectedBarang={setSelectedBarang} jumlah={jumlah} setJumlah={setJumlah} keranjang={keranjang} setKeranjang={setKeranjang} allVendorData={allVendorData} daftarVendorUnik={daftarVendorUnik} barangTersedia={barangTersedia} setBarangTersedia={setBarangTersedia} handleAddToCart={handleAddToCart} handleCheckout={handleCheckout} getSisaKuota={getSisaKuota} loading={loading} />}
-        {/* === TAB LAUNDRY MENGGUNAKAN WEBHOOK UMER === */}
         {activeTab === 'laundry' && <TabLaundry isAdmin={isAdmin} webhookUrl={WEBHOOK_UMER} />}
+
+        {/* === TAB MISI DIAKTIFKAN MENGGUNAKAN WEBHOOK_MISI === */}
+        {activeTab === 'misi' && <TabMisi isAdmin={isAdmin} webhookUrl={WEBHOOK_MISI} />}
 
         {activeTab === 'history' && <TabRiwayat showArchived={showArchived} setShowArchived={setShowArchived} searchNama={searchNama} setSearchNama={setSearchNama} setCurrentPage={setCurrentPage} filterVendor={filterVendor} setFilterVendor={setFilterVendor} orderList={orderList} filterBelumAmbil={filterBelumAmbil} setFilterBelumAmbil={setFilterBelumAmbil} paginatedOrders={paginatedOrders} totalPages={totalPages} currentPage={currentPage} isAdmin={isAdmin} loading={loading} updateOrderStatus={updateOrderStatus} requestCancelOrder={requestCancelOrder} />}
         {activeTab === 'kalkulator' && <TabKalkulator inputUmer={inputUmer} setInputUmer={setInputUmer} inputBibit={inputBibit} setInputBibit={setInputBibit} hasilUmer={hitungUmer()} hasilBibit={hitungBibit()} />}
@@ -327,7 +333,7 @@ export default function PreOrderPage() {
 
 function TabBtn({ active, onClick, icon, label, badge }) {
   return (
-    <button onClick={onClick} className={`flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-full transition-all ${active ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}>
+    <button onClick={onClick} className={`flex shrink-0 items-center gap-1.5 px-3 md:px-4 py-2 rounded-full transition-all ${active ? 'bg-red-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}>
       {icon} <span className="text-[10px] font-black uppercase tracking-wider hidden sm:block">{label}</span>
       {badge > 0 && <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${active ? 'bg-white text-red-600' : 'bg-red-600 text-white'}`}>{badge}</span>}
     </button>
