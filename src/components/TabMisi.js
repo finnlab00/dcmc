@@ -75,7 +75,7 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
         total_slot: Number(formMisi.slot)
       }]);
       
-      const msg = `📢 @everyone **LOWONGAN KERJA BARU!**\n**Misi:** ${formMisi.nama}\n**Kapasitas:** ${formMisi.slot} Pekerja\n**Upah:** $${Number(formMisi.harga).toLocaleString()} / ${formMisi.target}\n*Segera cek DCMC HUB untuk mengambil misi!*`;
+      const msg = `📢 @everyone **LOWONGAN KERJA BARU!**\n**Misi:** ${formMisi.nama}\n**Kapasitas:** ${formMisi.slot} Pekerja\n**Upah:** $${Number(formMisi.harga).toLocaleString()} / ${formMisi.target}\n*Segera cek DCMC HUB untuk mengambil misi! https://dcmc-sable.vercel.app/*`;
       await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }) });
       
       toast.success("Misi berhasil diterbitkan!");
@@ -120,8 +120,13 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
     const isAlreadyWorking = tasks.find(t => t.mission_id === misiId && t.nama_pekerja.toLowerCase() === namaPekerja.toLowerCase() && t.status !== 'SELESAI');
     if (isAlreadyWorking) { toast.error("Anda sedang/sudah mengerjakan misi ini!"); return; }
 
-    // Cari detail misi yang sedang diambil untuk diumumkan ke Discord
+    // Cari detail misi yang sedang diambil
     const targetMisi = missions.find(m => m.id === misiId);
+
+    // Hitung Sisa Slot 
+    // (Total slot awal dikurangi jumlah pekerja saat ini, lalu dikurangi 1 lagi karena baru saja diambil)
+    const pekerjaSaatIni = tasks.filter(t => t.mission_id === misiId).length;
+    const sisaSlot = Math.max(0, targetMisi.total_slot - (pekerjaSaatIni + 1));
 
     setLoading(true);
     try {
@@ -129,8 +134,15 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
         mission_id: misiId, nama_pekerja: namaPekerja, status: 'DIKERJAKAN'
       }]);
 
-      // === TAMBAHAN WEBHOOK SAAT MISI DIAMBIL ===
-      const msg = `👷 **MISI DIAMBIL!**\n**${namaPekerja}** baru saja mengambil dan mulai mengerjakan misi **${targetMisi.nama_misi}**.\n*Timer stopwatch telah berjalan!*`;
+      // === LOGIKA PENGUMUMAN SISA KUOTA ===
+      let msg = `👷 **MISI DIAMBIL!**\n**${namaPekerja}** baru saja mengambil dan mulai mengerjakan misi **${targetMisi.nama_misi}**.\n*Timer stopwatch telah berjalan!*`;
+      
+      if (sisaSlot > 0) {
+          msg += `\n\n📌 **Sisa Kuota Misi:** Tersisa **${sisaSlot} Slot** lagi!`;
+      } else {
+          msg += `\n\n🚫 **KUOTA HABIS:** Misi ini sekarang sudah terisi penuh!`;
+      }
+
       await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }) });
 
       toast.success("Misi berhasil diambil! Waktu mulai berjalan.");
