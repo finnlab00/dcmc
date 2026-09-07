@@ -75,7 +75,7 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
         total_slot: Number(formMisi.slot)
       }]);
       
-      const msg = `📢 @everyone **LOWONGAN KERJA BARU!**\n**Misi:** ${formMisi.nama}\n**Kapasitas:** ${formMisi.slot} Pekerja\n**Upah:** $${Number(formMisi.harga).toLocaleString()} / ${formMisi.target}\n*Segera cek DCMC HUB untuk mengambil misi! https://dcmc-sable.vercel.app/*`;
+      const msg = `📢 @everyone **LOWONGAN KERJA BARU!**\n**Misi:** ${formMisi.nama}\n**Kapasitas:** ${formMisi.slot} Pekerja\n**Upah:** $${Number(formMisi.harga).toLocaleString()} / ${formMisi.target}\n*Segera cek DCMC HUB untuk mengambil misi!* https://dcmc-sable.vercel.app/`;
       await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }) });
       
       toast.success("Misi berhasil diterbitkan!");
