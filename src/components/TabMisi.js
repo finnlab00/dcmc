@@ -39,7 +39,7 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
     const intervalData = setInterval(() => fetchData(true), 10000);
     // Detak jantung Live Timer setiap 1 detik
     const intervalTimer = setInterval(() => setNow(Date.now()), 1000);
-    
+
     return () => {
       clearInterval(intervalData);
       clearInterval(intervalTimer);
@@ -75,7 +75,7 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
         total_slot: Number(formMisi.slot)
       }]);
       
-      const msg = `📢 @everyone **LOWONGAN KERJA BARU!**\n**Misi:** ${formMisi.nama}\n**Kapasitas:** ${formMisi.slot} Pekerja\n**Upah:** $${Number(formMisi.harga).toLocaleString()} / ${formMisi.target}\n*Segera cek DCMC HUB untuk mengambil misi!* https://dcmc-sable.vercel.app/`;
+      const msg = `📢 @everyone **LOWONGAN KERJA BARU!**\n**Misi:** ${formMisi.nama}\n**Kapasitas:** ${formMisi.slot} Pekerja\n**Upah:** $${Number(formMisi.harga).toLocaleString()} / ${formMisi.target}\n*Segera cek DCMC HUB untuk mengambil misi!*`;
       await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }) });
       
       toast.success("Misi berhasil diterbitkan!");
@@ -124,7 +124,6 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
     const targetMisi = missions.find(m => m.id === misiId);
 
     // Hitung Sisa Slot 
-    // (Total slot awal dikurangi jumlah pekerja saat ini, lalu dikurangi 1 lagi karena baru saja diambil)
     const pekerjaSaatIni = tasks.filter(t => t.mission_id === misiId).length;
     const sisaSlot = Math.max(0, targetMisi.total_slot - (pekerjaSaatIni + 1));
 
@@ -134,7 +133,6 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
         mission_id: misiId, nama_pekerja: namaPekerja, status: 'DIKERJAKAN'
       }]);
 
-      // === LOGIKA PENGUMUMAN SISA KUOTA ===
       let msg = `👷 **MISI DIAMBIL!**\n**${namaPekerja}** baru saja mengambil dan mulai mengerjakan misi **${targetMisi.nama_misi}**.\n*Timer stopwatch telah berjalan!*`;
       
       if (sisaSlot > 0) {
@@ -246,7 +244,8 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
       </div>
 
       {/* KOLOM KANAN: PAPAN LOWONGAN LIVE */}
-      <div className="lg:col-span-8 bg-zinc-900/60 backdrop-blur-xl border border-zinc-800 p-6 md:p-8 rounded-3xl shadow-2xl flex flex-col h-[calc(100vh-140px)] sticky top-28">
+      {/* UPDATE CSS DI SINI: Ditambahkan overflow-hidden di kotak induknya */}
+      <div className="lg:col-span-8 bg-zinc-900/60 backdrop-blur-xl border border-zinc-800 p-6 md:p-8 rounded-3xl shadow-2xl flex flex-col h-[calc(100vh-140px)] sticky top-28 overflow-hidden">
         <div className="mb-6 flex justify-between items-center border-b border-zinc-800/80 pb-5">
           <h2 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-3">
              <CheckSquare className="text-zinc-400" size={24} /> Bounty Board
@@ -259,17 +258,16 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
             <p className="text-sm font-medium">Belum ada lowongan pekerjaan dibuka.</p>
           </div>
         ) : (
-          <div className="flex flex-col gap-8 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-700 flex-grow pb-4">
+          /* UPDATE CSS DI SINI: flex-grow diganti jadi flex-1 min-h-0, pb diperbesar agar leluasa */
+          <div className="flex flex-col gap-8 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-700 flex-1 min-h-0 pb-12">
             
             {missions.map(misi => {
-               // Ambil semua task/kartu pekerja yang terhubung dengan misi ini
                const misiTasks = tasks.filter(t => t.mission_id === misi.id);
-               // Hitung slot yang terpakai
                const slotTerpakai = misiTasks.length;
                const isFull = slotTerpakai >= misi.total_slot;
 
                return (
-                 <div key={misi.id} className="bg-black/40 border border-zinc-800 rounded-2xl overflow-hidden">
+                 <div key={misi.id} className="bg-black/40 border border-zinc-800 rounded-2xl overflow-hidden shrink-0">
                     
                     {/* Header Papan Induk (Lowongan) */}
                     <div className="bg-zinc-950/80 p-5 border-b border-zinc-800 flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative">
