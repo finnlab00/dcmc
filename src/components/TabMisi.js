@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { RefreshCcw, Target, Pickaxe, CheckCircle2, XCircle, Clock, AlertCircle, Trash2, Coins, Play, CheckSquare } from "lucide-react";
+import { RefreshCcw, Target, Pickaxe, CheckCircle2, XCircle, Clock, AlertCircle, Trash2, Coins, Play, CheckSquare, ChevronDown, ChevronUp } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "@/lib/supabase";
 
@@ -18,6 +18,9 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
   // Form Ambil Misi (Member)
   const [namaPekerja, setNamaPekerja] = useState("");
 
+  // UI State: Menyimpan ID misi mana yang sedang dibuka (Expand/Collapse)
+  const [expandedMissions, setExpandedMissions] = useState({});
+
   const fetchData = async (isSilent = false) => {
     try {
       const [resMissions, resTasks] = await Promise.all([
@@ -35,9 +38,7 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
 
   useEffect(() => {
     Promise.resolve().then(() => fetchData());
-    // Auto refresh data dari Supabase tiap 10 detik
     const intervalData = setInterval(() => fetchData(true), 10000);
-    // Detak jantung Live Timer setiap 1 detik
     const intervalTimer = setInterval(() => setNow(Date.now()), 1000);
 
     return () => {
@@ -46,7 +47,6 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
     };
   }, []);
 
-  // Helper Hitung Waktu
   const getElapsedTime = (startwaktu, endwaktu) => {
     const startTime = new Date(startwaktu).getTime();
     const endTime = endwaktu ? new Date(endwaktu).getTime() : now;
@@ -57,6 +57,15 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
     const m = Math.floor((diffInSeconds % 3600) / 60).toString().padStart(2, '0');
     const s = (diffInSeconds % 60).toString().padStart(2, '0');
     return `${h}:${m}:${s}`;
+  };
+
+  // Fungsi Toggle Accordion
+  const toggleMission = (id) => {
+    setExpandedMissions(prev => ({
+      ...prev,
+      // Jika belum ada nilainya (undefined), defaultnya terbuka, jadi klik pertama akan menutupnya (false)
+      [id]: prev[id] === undefined ? false : !prev[id]
+    }));
   };
 
   // ==========================================
@@ -116,14 +125,10 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
   const handleAmbilMisi = async (misiId) => {
     if (!namaPekerja) { toast.error("Ketik Callsign / Nama Anda di pojok kiri atas dulu!"); return; }
     
-    // Cek apakah member ini sudah ngambil misi ini (Mencegah spam klik)
     const isAlreadyWorking = tasks.find(t => t.mission_id === misiId && t.nama_pekerja.toLowerCase() === namaPekerja.toLowerCase() && t.status !== 'SELESAI');
     if (isAlreadyWorking) { toast.error("Anda sedang/sudah mengerjakan misi ini!"); return; }
 
-    // Cari detail misi yang sedang diambil
     const targetMisi = missions.find(m => m.id === misiId);
-
-    // Hitung Sisa Slot 
     const pekerjaSaatIni = tasks.filter(t => t.mission_id === misiId).length;
     const sisaSlot = Math.max(0, targetMisi.total_slot - (pekerjaSaatIni + 1));
 
@@ -134,14 +139,13 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
       }]);
 
       let msg = `👷 **MISI DIAMBIL!**\n**${namaPekerja}** baru saja mengambil dan mulai mengerjakan misi **${targetMisi.nama_misi}**.\n*Timer stopwatch telah berjalan!*`;
-      
-      if (sisaSlot > 0) {
-          msg += `\n\n📌 **Sisa Kuota Misi:** Tersisa **${sisaSlot} Slot** lagi!`;
-      } else {
-          msg += `\n\n🚫 **KUOTA HABIS:** Misi ini sekarang sudah terisi penuh!`;
-      }
+      if (sisaSlot > 0) { msg += `\n\n📌 **Sisa Kuota Misi:** Tersisa **${sisaSlot} Slot** lagi!`; }
+      else { msg += `\n\n🚫 **KUOTA HABIS:** Misi ini sekarang sudah terisi penuh!`; }
 
       await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }) });
+
+      // Otomatis buka accordion misi ini saat member berhasil ambil misi
+      setExpandedMissions(prev => ({ ...prev, [misiId]: true }));
 
       toast.success("Misi berhasil diambil! Waktu mulai berjalan.");
       fetchData(true);
@@ -163,7 +167,7 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
         status: 'MENUNGGU_VALIDASI', 
         hasil_panen: hasilPanen,
         total_gaji: totalGaji,
-        waktu_selesai: new Date().toISOString() // Waktu dihentikan
+        waktu_selesai: new Date().toISOString()
       }).eq("id", task.id);
       
       const msg = `🔔 **MENUNGGU VALIDASI**\n**${task.nama_pekerja}** telah menyetor ${hasilPanen} pcs barang dan menagih **$${totalGaji.toLocaleString()}**.\nAdmin harap merapat ke kota untuk pengecekan!`;
@@ -244,7 +248,6 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
       </div>
 
       {/* KOLOM KANAN: PAPAN LOWONGAN LIVE */}
-      {/* UPDATE CSS DI SINI: Ditambahkan overflow-hidden di kotak induknya */}
       <div className="lg:col-span-8 bg-zinc-900/60 backdrop-blur-xl border border-zinc-800 p-6 md:p-8 rounded-3xl shadow-2xl flex flex-col h-[calc(100vh-140px)] sticky top-28 overflow-hidden">
         <div className="mb-6 flex justify-between items-center border-b border-zinc-800/80 pb-5">
           <h2 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-3">
@@ -258,23 +261,28 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
             <p className="text-sm font-medium">Belum ada lowongan pekerjaan dibuka.</p>
           </div>
         ) : (
-          /* UPDATE CSS DI SINI: flex-grow diganti jadi flex-1 min-h-0, pb diperbesar agar leluasa */
-          <div className="flex flex-col gap-8 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-700 flex-1 min-h-0 pb-12">
+          <div className="flex flex-col gap-6 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-zinc-700 flex-1 min-h-0 pb-12">
             
             {missions.map(misi => {
                const misiTasks = tasks.filter(t => t.mission_id === misi.id);
                const slotTerpakai = misiTasks.length;
                const isFull = slotTerpakai >= misi.total_slot;
 
+               // Cek apakah accordion misi ini sedang dibuka (Default: true / Terbuka)
+               const isExpanded = expandedMissions[misi.id] !== false;
+
                return (
-                 <div key={misi.id} className="bg-black/40 border border-zinc-800 rounded-2xl overflow-hidden shrink-0">
+                 <div key={misi.id} className="bg-black/40 border border-zinc-800 rounded-2xl overflow-hidden shrink-0 transition-all duration-300">
                     
-                    {/* Header Papan Induk (Lowongan) */}
-                    <div className="bg-zinc-950/80 p-5 border-b border-zinc-800 flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative">
-                       {/* Indikator Penuh */}
-                       {isFull && <div className="absolute top-0 left-0 w-full h-1 bg-red-600"></div>}
-                       
-                       <div>
+                    {/* HEADER PAPAN INDUK (SEKARANG BISA DIKLIK) */}
+                    <div
+                      onClick={() => toggleMission(misi.id)}
+                      className="bg-zinc-950/80 p-5 border-b border-zinc-800 flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative cursor-pointer hover:bg-zinc-900/60 transition-colors group select-none"
+                    >
+                       {/* Indikator Penuh (Garis Merah di atas) */}
+                       {isFull && <div className="absolute top-0 left-0 w-full h-1 bg-red-600 shadow-[0_0_10px_#dc2626]"></div>}
+
+                       <div className="flex-1">
                          <h3 className="text-xl font-black text-white uppercase tracking-tight">{misi.nama_misi}</h3>
                          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs font-bold">
                             <span className="text-green-500 bg-green-950/30 px-2 py-1 rounded-md border border-green-900/50 flex items-center gap-1"><Coins size={12}/> ${Number(misi.harga_per_item).toLocaleString()} / {misi.target_pekerjaan}</span>
@@ -283,101 +291,117 @@ export default function TabMisi({ isAdmin, webhookUrl }) {
                          </div>
                        </div>
 
-                       <div className="flex gap-2">
+                       <div className="flex items-center gap-3">
+                         {/* Tombol Ambil/Hapus Misi (stopPropagation agar saat diklik tidak trigger collapse) */}
                          {!isAdmin && !isFull && (
-                            <button onClick={() => handleAmbilMisi(misi.id)} className="bg-red-600 hover:bg-red-500 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-[0_0_15px_rgba(220,38,38,0.3)]">
+                            <button onClick={(e) => { e.stopPropagation(); handleAmbilMisi(misi.id); }} className="bg-red-600 hover:bg-red-500 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-[0_0_15px_rgba(220,38,38,0.3)]">
                               Ambil Misi
                             </button>
                          )}
                          {isAdmin && (
-                            <button onClick={() => aksiHapusMisi(misi.id, misi.nama_misi)} title="Tutup Lowongan Ini" className="bg-transparent border border-zinc-700 text-zinc-500 hover:text-red-500 hover:bg-red-950/30 hover:border-red-900/50 px-4 py-2.5 rounded-xl text-xs font-black uppercase transition-all">
+                            <button onClick={(e) => { e.stopPropagation(); aksiHapusMisi(misi.id, misi.nama_misi); }} title="Tutup Lowongan Ini" className="bg-transparent border border-zinc-700 text-zinc-500 hover:text-red-500 hover:bg-red-950/30 hover:border-red-900/50 px-4 py-2.5 rounded-xl text-xs font-black uppercase transition-all">
                               Tutup Misi
                             </button>
                          )}
+
+                         {/* ICON CHEVRON UNTUK ACCORDION */}
+                         <div className="p-1.5 rounded-full bg-zinc-900 text-zinc-500 group-hover:text-white transition-colors border border-zinc-800 hidden sm:block">
+                            {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                         </div>
                        </div>
                     </div>
 
-                    {/* Daftar Kartu Pekerja (Orang-orang yang mengambil misi ini) */}
-                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-950/40">
-                       {misiTasks.length === 0 ? (
-                          <div className="col-span-full py-4 text-center text-[11px] font-bold text-zinc-600 uppercase tracking-widest border border-dashed border-zinc-800 rounded-xl">
-                            Belum ada pekerja yang mengambil misi ini
-                          </div>
-                       ) : (
-                          misiTasks.map(task => (
-                             <div key={task.id} className={`p-4 rounded-xl border flex flex-col justify-between transition-all shadow-inner ${task.status === 'DIKERJAKAN' ? 'bg-blue-950/10 border-blue-900/30' : task.status === 'MENUNGGU_VALIDASI' ? 'bg-amber-950/10 border-amber-900/30' : 'bg-green-950/5 border-green-900/20'}`}>
-                                
-                                <div className="flex justify-between items-start mb-3">
-                                   <div>
-                                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Pekerja Aktif</p>
-                                      <p className="text-base font-black text-white uppercase">{task.nama_pekerja}</p>
-                                   </div>
-                                   <div className={`text-[9px] font-black tracking-widest uppercase px-2 py-1 rounded-md border ${task.status === 'DIKERJAKAN' ? 'text-blue-400 border-blue-900/50 bg-blue-950/30' : task.status === 'MENUNGGU_VALIDASI' ? 'text-amber-500 border-amber-900/50 bg-amber-950/30' : 'text-green-500 border-green-900/50 bg-green-950/30'}`}>
-                                      {task.status.replace("_", " ")}
-                                   </div>
-                                </div>
+                    {/* DAFTAR KARTU PEKERJA (Tampil jika isExpanded === true) */}
+                    {isExpanded && (
+                        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-950/40 animate-in slide-in-from-top-2 fade-in duration-200">
+                           {misiTasks.length === 0 ? (
+                              <div className="col-span-full py-6 text-center text-[11px] font-bold text-zinc-600 uppercase tracking-widest border border-dashed border-zinc-800 rounded-xl">
+                                Belum ada pekerja yang mengambil misi ini
+                              </div>
+                           ) : (
+                              misiTasks.map(task => (
+                                 <div key={task.id} className={`p-4 rounded-2xl border flex flex-col justify-between transition-all shadow-inner ${
+                                     task.status === 'DIKERJAKAN' ? 'bg-blue-950/20 border-blue-600/30 shadow-[0_0_20px_rgba(37,99,235,0.05)]' :
+                                     task.status === 'MENUNGGU_VALIDASI' ? 'bg-amber-950/10 border-amber-900/30' :
+                                     'bg-green-950/5 border-green-900/20'
+                                 }`}>
 
-                                {/* LIVE TIMER (Stopwatch) */}
-                                <div className="bg-black/50 border border-zinc-800/80 rounded-lg p-3 mb-4 flex items-center justify-between">
-                                   <div className="flex items-center gap-2">
-                                      <Clock size={16} className={task.status === 'DIKERJAKAN' ? 'text-blue-500 animate-spin-slow' : 'text-zinc-500'} />
-                                      <div>
-                                         <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider mb-0.5">Durasi Kerja</p>
-                                         <p className={`text-xl font-black font-mono tracking-tighter drop-shadow-md ${task.status === 'DIKERJAKAN' ? 'text-blue-400' : 'text-white'}`}>
-                                            {getElapsedTime(task.created_at, task.waktu_selesai)}
-                                         </p>
-                                      </div>
-                                   </div>
-                                   {/* Jika sudah lapor, munculkan hasil tagihan */}
-                                   {task.status !== 'DIKERJAKAN' && (
-                                      <div className="text-right">
-                                         <p className="text-[9px] text-amber-500 font-bold uppercase tracking-wider mb-0.5">Tagihan Gaji</p>
-                                         <p className="text-sm font-black text-green-500">+ ${Number(task.total_gaji).toLocaleString()}</p>
-                                      </div>
-                                   )}
-                                </div>
-
-                                {/* Tombol Interaksi (Member & Admin) */}
-                                <div className="flex gap-2 mt-auto">
-                                   {/* TOMBOL MEMBER */}
-                                   {!isAdmin && task.status === 'DIKERJAKAN' && (
-                                      <>
-                                         <button onClick={() => handleSetorHasil(task, misi.harga_per_item)} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
-                                           Setor Hasil
-                                         </button>
-                                         <button onClick={() => handleBatalMisi(task.id)} className="px-3 bg-red-950/30 text-red-500 hover:bg-red-600 hover:text-white border border-red-900/50 rounded-lg transition-all" title="Batal Mengerjakan">
-                                           <Trash2 size={14}/>
-                                         </button>
-                                      </>
-                                   )}
-                                   {!isAdmin && task.status !== 'DIKERJAKAN' && (
-                                       <div className="w-full text-center py-2.5 text-[10px] font-bold text-zinc-500 bg-black/40 rounded-lg">
-                                           MENUNGGU ADMIN...
+                                    <div className="flex justify-between items-start mb-3">
+                                       <div>
+                                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Pekerja Aktif</p>
+                                          <p className="text-base font-black text-white uppercase">{task.nama_pekerja}</p>
                                        </div>
-                                   )}
+                                       <div className={`text-[9px] font-black tracking-widest uppercase px-2 py-1 rounded-md border ${
+                                          task.status === 'DIKERJAKAN' ? 'text-blue-400 border-blue-600/50 bg-blue-900/30' :
+                                          task.status === 'MENUNGGU_VALIDASI' ? 'text-amber-500 border-amber-900/50 bg-amber-950/30' :
+                                          'text-green-500 border-green-900/50 bg-green-950/30'
+                                       }`}>
+                                          {task.status.replace("_", " ")}
+                                       </div>
+                                    </div>
 
-                                   {/* TOMBOL ADMIN */}
-                                   {isAdmin && task.status === 'MENUNGGU_VALIDASI' && (
-                                      <button onClick={() => aksiValidasiGaji(task, misi.nama_misi)} className="w-full flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(22,163,74,0.4)]">
-                                         <CheckCircle2 size={14}/> Validasi & Bayar
-                                      </button>
-                                   )}
-                                   {isAdmin && task.status === 'DIKERJAKAN' && (
-                                      <div className="w-full text-center py-2.5 text-[10px] font-bold text-zinc-500 bg-black/40 rounded-lg">
-                                           PEKERJA SEDANG SIBUK...
-                                      </div>
-                                   )}
-                                   {isAdmin && task.status === 'SELESAI' && (
-                                       <button onClick={() => handleBatalMisi(task.id)} className="w-full flex items-center justify-center gap-1 bg-transparent text-zinc-500 hover:bg-zinc-800 hover:text-white border border-zinc-800 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
-                                         <XCircle size={14}/> Arsipkan Kartu Ini
-                                       </button>
-                                   )}
-                                </div>
+                                    {/* LIVE TIMER (Stopwatch) */}
+                                    <div className={`bg-black border rounded-xl p-4 mb-4 flex items-center justify-between ${task.status === 'DIKERJAKAN' ? 'border-blue-900/50' : 'border-zinc-800/80'}`}>
+                                       <div className="flex items-center gap-2">
+                                          <Clock size={16} className={task.status === 'DIKERJAKAN' ? 'text-blue-500 animate-spin-slow' : 'text-zinc-500'} />
+                                          <div>
+                                             <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider mb-0.5">Durasi Kerja</p>
+                                             <p className={`text-2xl font-black font-mono tracking-tighter drop-shadow-md ${task.status === 'DIKERJAKAN' ? 'text-blue-400' : 'text-white'}`}>
+                                                {getElapsedTime(task.created_at, task.waktu_selesai)}
+                                             </p>
+                                          </div>
+                                       </div>
+                                       {/* Jika sudah lapor, munculkan hasil tagihan */}
+                                       {task.status !== 'DIKERJAKAN' && (
+                                          <div className="text-right">
+                                             <p className="text-[9px] text-amber-500 font-bold uppercase tracking-wider mb-0.5">Tagihan Gaji</p>
+                                             <p className="text-sm font-black text-green-500">+ ${Number(task.total_gaji).toLocaleString()}</p>
+                                          </div>
+                                       )}
+                                    </div>
 
-                             </div>
-                          ))
-                       )}
-                    </div>
+                                    {/* Tombol Interaksi (Member & Admin) */}
+                                    <div className="flex gap-2 mt-auto">
+                                       {/* TOMBOL MEMBER */}
+                                       {!isAdmin && task.status === 'DIKERJAKAN' && (
+                                          <>
+                                             <button onClick={() => handleSetorHasil(task, misi.harga_per_item)} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+                                               Setor Hasil
+                                             </button>
+                                             <button onClick={() => handleBatalMisi(task.id)} className="px-4 bg-red-950/30 text-red-500 hover:bg-red-600 hover:text-white border border-red-900/50 rounded-xl transition-all" title="Batal Mengerjakan">
+                                               <Trash2 size={16}/>
+                                             </button>
+                                          </>
+                                       )}
+                                       {!isAdmin && task.status !== 'DIKERJAKAN' && (
+                                           <div className="w-full text-center py-3 text-[10px] font-bold text-zinc-500 bg-black/40 rounded-xl">
+                                               MENUNGGU ADMIN...
+                                           </div>
+                                       )}
+
+                                       {/* TOMBOL ADMIN */}
+                                       {isAdmin && task.status === 'MENUNGGU_VALIDASI' && (
+                                          <button onClick={() => aksiValidasiGaji(task, misi.nama_misi)} className="w-full flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(22,163,74,0.4)]">
+                                             <CheckCircle2 size={16}/> Validasi & Bayar
+                                          </button>
+                                       )}
+                                       {isAdmin && task.status === 'DIKERJAKAN' && (
+                                          <div className="w-full text-center py-3 text-[10px] font-bold text-zinc-500 bg-black/40 rounded-xl">
+                                               PEKERJA SEDANG SIBUK...
+                                          </div>
+                                       )}
+                                       {isAdmin && task.status === 'SELESAI' && (
+                                           <button onClick={() => handleBatalMisi(task.id)} className="w-full flex items-center justify-center gap-1 bg-transparent text-zinc-500 hover:bg-zinc-800 hover:text-white border border-zinc-800 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                                             <XCircle size={16}/> Arsipkan Kartu Ini
+                                           </button>
+                                       )}
+                                    </div>
+
+                                 </div>
+                              ))
+                           )}
+                        </div>
+                    )}
 
                  </div>
                )
