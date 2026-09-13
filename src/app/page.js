@@ -37,7 +37,7 @@ export default function LoginPage() {
       <Toaster position="top-center" toastOptions={{ style: { background: '#1e293b', color: '#fff', borderRadius: '12px', border: '1px solid #334155' } }} />
       <div className="max-w-md w-full bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl text-center">
         <div className="mb-10">
-          <h1 className="text-4xl font-black text-red-600 italic tracking-tighter mb-2">DCMC LOGISTICS</h1>
+          <h1 className="text-4xl font-black text-red-600 italic tracking-tighter mb-2">DCMC HUB</h1>
           <div className="h-1 w-20 bg-red-600 mx-auto mb-4"></div>
           <p className="text-[10px] font-bold text-slate-500 tracking-[0.3em]">SECURE ACCESS PORTAL</p>
         </div>
